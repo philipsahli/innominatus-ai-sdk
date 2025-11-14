@@ -19,8 +19,8 @@ type Query struct {
 
 // SearchResult represents a document with similarity score
 type SearchResult struct {
-	Document   Document
-	Similarity float32 // Cosine similarity score (0-1)
+	Document Document
+	Score    float32 // Cosine similarity score (0-1)
 }
 
 // EmbeddingProvider defines the interface for generating embeddings

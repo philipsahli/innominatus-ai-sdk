@@ -59,7 +59,7 @@ func (r *Retriever) formatContext(results []SearchResult) string {
 	builder.WriteString("Relevant context from knowledge base:\n\n")
 
 	for i, result := range results {
-		builder.WriteString(fmt.Sprintf("--- Document %d (Relevance: %.2f) ---\n", i+1, result.Similarity))
+		builder.WriteString(fmt.Sprintf("--- Document %d (Relevance: %.2f) ---\n", i+1, result.Score))
 
 		// Add metadata if available
 		if len(result.Document.Metadata) > 0 {

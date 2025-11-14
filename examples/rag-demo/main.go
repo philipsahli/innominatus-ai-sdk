@@ -200,7 +200,7 @@ When configuring Kubernetes resources for production workloads:
 		fmt.Printf("📖 Retrieved %d relevant documents (showing relevance scores):\n", len(ragResponse.Results))
 		for j, result := range ragResponse.Results {
 			title := result.Document.Metadata["title"]
-			fmt.Printf("   %d. %s (%.2f relevance)\n", j+1, title, result.Similarity)
+			fmt.Printf("   %d. %s (%.2f relevance)\n", j+1, title, result.Score)
 		}
 		fmt.Println()
 

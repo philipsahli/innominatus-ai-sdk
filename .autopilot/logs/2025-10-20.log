@@ -1,0 +1,6 @@
+06:14:34 | INFO  | Starting backlog auto-fill scan
+06:14:34 | INFO  | Project: /Users/philipsahli/projects/innominatus-ai-sdk
+06:14:34 | INFO  | Running in interactive TTY mode
+06:14:34 | INFO  | Executing claude CLI in /Users/philipsahli/projects/innominatus-ai-sdk
+11:45:16 | INFO  | Claude CLI completed successfully
+11:45:16 | INFO  | Backlog scan completed successfully

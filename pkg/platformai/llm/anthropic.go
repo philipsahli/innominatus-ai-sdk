@@ -22,6 +22,7 @@ type AnthropicClient struct {
 	apiKey     string
 	model      string
 	httpClient *http.Client
+	apiURL     string // Override for testing
 }
 
 // NewAnthropicClient creates a new Anthropic client
@@ -29,6 +30,7 @@ func NewAnthropicClient(config Config) *AnthropicClient {
 	return &AnthropicClient{
 		apiKey: config.APIKey,
 		model:  config.Model,
+		apiURL: anthropicAPIURL,
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 			Transport: &http.Transport{
@@ -158,7 +160,7 @@ func (c *AnthropicClient) Generate(ctx context.Context, req GenerateRequest) (*G
 	}
 
 	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", anthropicAPIURL, bytes.NewBuffer(jsonData))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.apiURL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -296,7 +298,7 @@ func (c *AnthropicClient) GenerateWithTools(ctx context.Context, req GenerateWit
 	}
 
 	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", anthropicAPIURL, bytes.NewBuffer(jsonData))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.apiURL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

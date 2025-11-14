@@ -69,15 +69,15 @@ func (s *InMemoryVectorStore) Search(ctx context.Context, queryEmbedding []float
 		similarity := cosineSimilarity(queryEmbedding, doc.Embedding)
 		if similarity >= minScore {
 			results = append(results, SearchResult{
-				Document:   doc,
-				Similarity: similarity,
+				Document: doc,
+				Score:    similarity,
 			})
 		}
 	}
 
 	// Sort by similarity (highest first)
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].Similarity > results[j].Similarity
+		return results[i].Score > results[j].Score
 	})
 
 	// Return top K results

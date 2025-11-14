@@ -1,0 +1,9 @@
+# Verification Artifacts
+
+This directory stores outputs from verification scripts.
+
+Files are auto-generated with timestamps:
+- codemapping-YYYYMMDD-HHMMSS.json
+- rag-YYYYMMDD-HHMMSS.json
+
+These artifacts help validate feature behavior and debug issues.

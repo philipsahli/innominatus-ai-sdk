@@ -1,0 +1,17 @@
+13:40:24 | INFO  | Starting Claude Code configuration
+13:40:24 | INFO  | Project: /Users/philipsahli/projects/innominatus-ai-sdk
+13:40:24 | INFO  | Running in interactive TTY mode
+13:40:24 | INFO  | Executing claude CLI in /Users/philipsahli/projects/innominatus-ai-sdk
+13:57:01 | INFO  | Claude CLI completed successfully
+13:57:01 | INFO  | Configuration completed successfully
+13:57:22 | INFO  | Starting Claude Code configuration
+13:57:22 | INFO  | Project: /Users/philipsahli/projects/innominatus-ai-sdk
+13:57:22 | INFO  | Running in interactive TTY mode
+13:57:22 | INFO  | Executing claude CLI in /Users/philipsahli/projects/innominatus-ai-sdk
+18:27:14 | INFO  | Claude CLI completed successfully
+18:27:14 | INFO  | Configuration completed successfully
+18:27:26 | INFO  | Starting backlog auto-fill scan
+18:27:26 | INFO  | Project: /Users/philipsahli/projects/innominatus-ai-sdk
+18:27:26 | INFO  | Running in interactive TTY mode
+18:27:26 | INFO  | Executing claude CLI in /Users/philipsahli/projects/innominatus-ai-sdk
+18:28:32 | ERROR | Backlog scan failed: claude CLI failed: claude command failed: exit status 143
