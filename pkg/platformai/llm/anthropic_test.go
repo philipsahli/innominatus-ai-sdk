@@ -114,9 +114,12 @@ func TestAnthropicClient_Generate(t *testing.T) {
 
 				w.WriteHeader(tt.mockStatusCode)
 				if tt.mockStatusCode == http.StatusOK {
-					json.NewEncoder(w).Encode(tt.mockResponse)
+					if err := json.NewEncoder(w).Encode(tt.mockResponse); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
 				} else {
-					json.NewEncoder(w).Encode(anthropicError{
+					if err := json.NewEncoder(w).Encode(anthropicError{
 						Type: "error",
 						Error: struct {
 							Type    string `json:"type"`
@@ -125,7 +128,10 @@ func TestAnthropicClient_Generate(t *testing.T) {
 							Type:    "rate_limit_error",
 							Message: "Rate limit exceeded",
 						},
-					})
+					}); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
 				}
 			}))
 			defer server.Close()
@@ -163,7 +169,7 @@ func TestAnthropicClient_Generate(t *testing.T) {
 func TestAnthropicClient_GenerateWithContext(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(anthropicResponse{
+		if err := json.NewEncoder(w).Encode(anthropicResponse{
 			ID:   "msg_125",
 			Type: "message",
 			Role: "assistant",
@@ -182,7 +188,10 @@ func TestAnthropicClient_GenerateWithContext(t *testing.T) {
 				InputTokens:  20,
 				OutputTokens: 10,
 			},
-		})
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}))
 	defer server.Close()
 
@@ -214,7 +223,7 @@ func TestAnthropicClient_GenerateWithContext(t *testing.T) {
 func TestAnthropicClient_GenerateWithTools(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(anthropicResponse{
+		if err := json.NewEncoder(w).Encode(anthropicResponse{
 			ID:   "msg_126",
 			Type: "message",
 			Role: "assistant",
@@ -239,7 +248,10 @@ func TestAnthropicClient_GenerateWithTools(t *testing.T) {
 				InputTokens:  15,
 				OutputTokens: 20,
 			},
-		})
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}))
 	defer server.Close()
 

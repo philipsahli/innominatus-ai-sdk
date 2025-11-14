@@ -44,12 +44,12 @@ func NewAnthropicClient(config Config) *AnthropicClient {
 
 // anthropicRequest represents the request format for Anthropic API
 type anthropicRequest struct {
-	Model       string              `json:"model"`
-	MaxTokens   int                 `json:"max_tokens"`
-	Temperature float32             `json:"temperature,omitempty"`
-	System      string              `json:"system,omitempty"`
-	Messages    []anthropicMessage  `json:"messages"`
-	Tools       []Tool              `json:"tools,omitempty"`
+	Model       string             `json:"model"`
+	MaxTokens   int                `json:"max_tokens"`
+	Temperature float32            `json:"temperature,omitempty"`
+	System      string             `json:"system,omitempty"`
+	Messages    []anthropicMessage `json:"messages"`
+	Tools       []Tool             `json:"tools,omitempty"`
 }
 
 // anthropicMessage represents a message in the conversation
@@ -72,8 +72,6 @@ type anthropicContentBlock struct {
 
 // MarshalJSON implements custom JSON marshaling to ensure input is always included for tool_use
 func (b anthropicContentBlock) MarshalJSON() ([]byte, error) {
-	type Alias anthropicContentBlock
-
 	// Create a map for manual JSON construction
 	result := make(map[string]interface{})
 	result["type"] = b.Type
@@ -95,7 +93,7 @@ func (b anthropicContentBlock) MarshalJSON() ([]byte, error) {
 		} else {
 			result["input"] = b.Input
 		}
-	} else if b.Input != nil && len(b.Input) > 0 {
+	} else if len(b.Input) > 0 {
 		result["input"] = b.Input
 	}
 
@@ -261,16 +259,7 @@ func (c *AnthropicClient) GenerateWithTools(ctx context.Context, req GenerateWit
 			// Complex message with multiple content blocks
 			var blocks []anthropicContentBlock
 			for _, block := range msg.Content {
-				blocks = append(blocks, anthropicContentBlock{
-					Type:      block.Type,
-					Text:      block.Text,
-					ID:        block.ID,
-					Name:      block.Name,
-					Input:     block.Input,
-					ToolUseID: block.ToolUseID,
-					Content:   block.Content,
-					IsError:   block.IsError,
-				})
+				blocks = append(blocks, anthropicContentBlock(block))
 			}
 			content = blocks
 		}

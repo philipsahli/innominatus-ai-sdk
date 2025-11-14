@@ -65,7 +65,7 @@ type GenerateWithToolsRequest struct {
 
 // Message represents a conversation message
 type Message struct {
-	Role    string        `json:"role"` // "user" or "assistant"
+	Role    string         `json:"role"` // "user" or "assistant"
 	Content []ContentBlock `json:"content"`
 }
 

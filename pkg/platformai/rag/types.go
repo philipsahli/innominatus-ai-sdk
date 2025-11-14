@@ -4,10 +4,10 @@ import "context"
 
 // Document represents a document stored in the RAG system
 type Document struct {
-	ID       string            // Unique identifier
-	Content  string            // Document content
-	Metadata map[string]string // Optional metadata (e.g., source, title, category)
-	Embedding []float32        // Vector embedding of the document
+	ID        string            // Unique identifier
+	Content   string            // Document content
+	Metadata  map[string]string // Optional metadata (e.g., source, title, category)
+	Embedding []float32         // Vector embedding of the document
 }
 
 // Query represents a search query
@@ -55,10 +55,10 @@ type VectorStore interface {
 
 // Config holds RAG module configuration
 type Config struct {
-	EmbeddingProvider string  // Provider for embeddings ("anthropic", "voyageai", "openai")
-	APIKey            string  // API key for embedding provider
-	Model             string  // Model name for embeddings
-	EmbeddingDim      int     // Embedding dimension
+	EmbeddingProvider string // Provider for embeddings ("anthropic", "voyageai", "openai")
+	APIKey            string // API key for embedding provider
+	Model             string // Model name for embeddings
+	EmbeddingDim      int    // Embedding dimension
 }
 
 // RetrieveRequest represents a request to retrieve relevant documents
@@ -70,7 +70,7 @@ type RetrieveRequest struct {
 
 // RetrieveResponse represents retrieved documents with context
 type RetrieveResponse struct {
-	Results       []SearchResult // Retrieved documents with scores
-	Context       string         // Formatted context for LLM
-	QueryEmbedding []float32     // Embedding of the query
+	Results        []SearchResult // Retrieved documents with scores
+	Context        string         // Formatted context for LLM
+	QueryEmbedding []float32      // Embedding of the query
 }

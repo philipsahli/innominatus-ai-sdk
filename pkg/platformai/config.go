@@ -14,7 +14,7 @@ type Config struct {
 
 // LLMConfig holds LLM provider configuration
 type LLMConfig struct {
-	Provider    string  // "anthropic"
+	Provider    string // "anthropic"
 	APIKey      string
 	Model       string  // "claude-sonnet-4-5-20250929"
 	Temperature float32 // default: 0.3

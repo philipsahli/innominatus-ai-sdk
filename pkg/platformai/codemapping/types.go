@@ -2,13 +2,13 @@ package codemapping
 
 // RepositoryAnalysis contains repository analysis results
 type RepositoryAnalysis struct {
-	PrimaryLanguage    string
-	DetectedFramework  string
-	Files              []string
-	Dependencies       map[string]string
-	HasDockerfile      bool
-	DockerfileContent  string
-	LanguageVersion    string
+	PrimaryLanguage   string
+	DetectedFramework string
+	Files             []string
+	Dependencies      map[string]string
+	HasDockerfile     bool
+	DockerfileContent string
+	LanguageVersion   string
 }
 
 // PlatformConfig represents the generated platform configuration
@@ -78,7 +78,7 @@ type HealthCheckConfig struct {
 
 // Recommendation represents an actionable recommendation
 type Recommendation struct {
-	Level   string `json:"level"`   // "info", "warning", "critical"
+	Level   string `json:"level"` // "info", "warning", "critical"
 	Title   string `json:"title"`
 	Message string `json:"message"`
 }

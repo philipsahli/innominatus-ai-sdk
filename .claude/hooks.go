@@ -189,8 +189,8 @@ func checkCoverage() {
 					if strings.Contains(coverageStr, ".") {
 						// Has coverage value, check if below 80%
 						if !strings.HasPrefix(coverageStr, "8") &&
-						   !strings.HasPrefix(coverageStr, "9") &&
-						   !strings.HasPrefix(coverageStr, "10") {
+							!strings.HasPrefix(coverageStr, "9") &&
+							!strings.HasPrefix(coverageStr, "10") {
 							// Quick check: if it starts with 0-7, it's below 80%
 							if len(coverageStr) > 0 && coverageStr[0] >= '0' && coverageStr[0] <= '7' {
 								belowThreshold = append(belowThreshold,

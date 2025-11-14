@@ -16,7 +16,7 @@ func main() {
 	ctx := context.Background()
 
 	fmt.Println("🔧 RAG Module Verification")
-	fmt.Println("==========================\n")
+	fmt.Println("==========================")
 
 	// Setup
 	fmt.Println("1. Setting up SDK with RAG...")
