@@ -34,6 +34,7 @@ func NewAnthropicClient(config Config) *AnthropicClient {
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 			Transport: &http.Transport{
+				Proxy:               http.ProxyFromEnvironment,
 				MaxIdleConns:        10,
 				MaxIdleConnsPerHost: 10,
 				IdleConnTimeout:     90 * time.Second,

@@ -27,6 +27,9 @@ func NewVoyageEmbeddingClient(apiKey, model string) *VoyageEmbeddingClient {
 		model:  model,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+			},
 		},
 	}
 }
@@ -109,6 +112,9 @@ func NewOpenAIEmbeddingClient(apiKey, model string) *OpenAIEmbeddingClient {
 		model:  model,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+			},
 		},
 	}
 }
