@@ -41,12 +41,25 @@ func (m *Module) AddDocument(ctx context.Context, id, content string, metadata m
 }
 
 // AddDocuments adds multiple documents to the knowledge base
-func (m *Module) AddDocuments(ctx context.Context, docs []struct {
-	ID       string
-	Content  string
-	Metadata map[string]string
-}) error {
-	return m.retriever.AddDocuments(ctx, docs)
+func (m *Module) AddDocuments(ctx context.Context, docs []Document) error {
+	// Convert to internal format for retriever
+	internalDocs := make([]struct {
+		ID       string
+		Content  string
+		Metadata map[string]string
+	}, len(docs))
+	for i, doc := range docs {
+		internalDocs[i] = struct {
+			ID       string
+			Content  string
+			Metadata map[string]string
+		}{
+			ID:       doc.ID,
+			Content:  doc.Content,
+			Metadata: doc.Metadata,
+		}
+	}
+	return m.retriever.AddDocuments(ctx, internalDocs)
 }
 
 // Retrieve retrieves relevant documents for a query
