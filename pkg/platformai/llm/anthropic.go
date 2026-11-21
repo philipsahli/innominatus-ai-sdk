@@ -111,6 +111,22 @@ func (b anthropicContentBlock) MarshalJSON() ([]byte, error) {
 	return json.Marshal(result)
 }
 
+// UnmarshalJSON restores Input, which the json:"-" tag (needed for the custom
+// MarshalJSON above) would otherwise drop from tool_use blocks in responses.
+func (b *anthropicContentBlock) UnmarshalJSON(data []byte) error {
+	type plain anthropicContentBlock // no methods, so no recursion
+	var aux struct {
+		plain
+		Input map[string]interface{} `json:"input"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*b = anthropicContentBlock(aux.plain)
+	b.Input = aux.Input
+	return nil
+}
+
 // anthropicResponse represents the response format from Anthropic API
 type anthropicResponse struct {
 	ID           string                  `json:"id"`
