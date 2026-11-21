@@ -423,3 +423,17 @@ for _, tt := range tests {
 ---
 
 **Remember:** Simple code that works > Complex code that's "clever"
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues in `philipsahli/innominatus-ai-sdk`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles as GitHub labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`); priority as `P0`–`P3` labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root, created only when first needed. See `docs/agents/domain.md`.
