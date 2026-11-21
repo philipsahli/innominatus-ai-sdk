@@ -3,8 +3,10 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -408,5 +410,237 @@ func TestNewAnthropicClient(t *testing.T) {
 	if client.httpClient.Timeout != defaultTimeout {
 		t.Errorf("NewAnthropicClient() timeout = %v, want %v",
 			client.httpClient.Timeout, defaultTimeout)
+	}
+}
+
+func newTestClient(apiURL string) *AnthropicClient {
+	return &AnthropicClient{
+		apiKey:     "test-key",
+		model:      "claude-sonnet-4-5-20250929",
+		apiURL:     apiURL,
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+	}
+}
+
+// generateFuncs runs each error case against both entry points, because
+// Generate and GenerateWithTools each carry their own copy of the HTTP and
+// response handling.
+var generateFuncs = map[string]func(context.Context, *AnthropicClient) (*GenerateResponse, error){
+	"Generate": func(ctx context.Context, c *AnthropicClient) (*GenerateResponse, error) {
+		return c.Generate(ctx, GenerateRequest{UserPrompt: "test", MaxTokens: 50})
+	},
+	"GenerateWithTools": func(ctx context.Context, c *AnthropicClient) (*GenerateResponse, error) {
+		return c.GenerateWithTools(ctx, GenerateWithToolsRequest{
+			Messages:  []Message{{Role: "user", Content: []ContentBlock{{Type: "text", Text: "test"}}}},
+			MaxTokens: 50,
+		})
+	},
+}
+
+func TestAnthropicClient_ErrorResponses(t *testing.T) {
+	tests := []struct {
+		name         string
+		status       int
+		body         string
+		wantErrParts []string
+	}{
+		{
+			name:         "non-200 with JSON error body",
+			status:       http.StatusBadRequest,
+			body:         `{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens is required"}}`,
+			wantErrParts: []string{"invalid_request_error", "max_tokens is required"},
+		},
+		{
+			name:         "non-200 with non-JSON body",
+			status:       http.StatusBadGateway,
+			body:         "<html>bad gateway</html>",
+			wantErrParts: []string{"status 502", "<html>bad gateway</html>"},
+		},
+		{
+			name:         "200 with non-JSON body",
+			status:       http.StatusOK,
+			body:         "not json",
+			wantErrParts: []string{"failed to parse response"},
+		},
+	}
+
+	for _, tt := range tests {
+		for fnName, call := range generateFuncs {
+			t.Run(fnName+"/"+tt.name, func(t *testing.T) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(tt.status)
+					_, _ = w.Write([]byte(tt.body))
+				}))
+				defer server.Close()
+
+				resp, err := call(context.Background(), newTestClient(server.URL))
+				if err == nil {
+					t.Fatalf("%s() error = nil, want error", fnName)
+				}
+				if resp != nil {
+					t.Errorf("%s() response = %+v, want nil", fnName, resp)
+				}
+				for _, part := range tt.wantErrParts {
+					if !strings.Contains(err.Error(), part) {
+						t.Errorf("%s() error = %q, want it to contain %q", fnName, err, part)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestAnthropicClient_RequestFailure(t *testing.T) {
+	tests := []struct {
+		name   string
+		setup  func(t *testing.T) (context.Context, string)
+		wantIs error
+	}{
+		{
+			name: "server closed",
+			setup: func(t *testing.T) (context.Context, string) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				url := server.URL
+				server.Close()
+				return context.Background(), url
+			},
+		},
+		{
+			name: "cancelled context",
+			setup: func(t *testing.T) (context.Context, string) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					t.Error("request reached the server despite a cancelled context")
+				}))
+				t.Cleanup(server.Close)
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx, server.URL
+			},
+			wantIs: context.Canceled,
+		},
+	}
+
+	for _, tt := range tests {
+		for fnName, call := range generateFuncs {
+			t.Run(fnName+"/"+tt.name, func(t *testing.T) {
+				ctx, url := tt.setup(t)
+
+				_, err := call(ctx, newTestClient(url))
+				if err == nil {
+					t.Fatalf("%s() error = nil, want error", fnName)
+				}
+				if !strings.Contains(err.Error(), "failed to send request") {
+					t.Errorf("%s() error = %q, want it to contain %q", fnName, err, "failed to send request")
+				}
+				if tt.wantIs != nil && !errors.Is(err, tt.wantIs) {
+					t.Errorf("%s() error = %v, want errors.Is(err, %v)", fnName, err, tt.wantIs)
+				}
+			})
+		}
+	}
+}
+
+func TestAnthropicClient_Generate_MixedContent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{
+			"id": "msg_127",
+			"type": "message",
+			"role": "assistant",
+			"model": "claude-sonnet-4-5-20250929",
+			"stop_reason": "tool_use",
+			"content": [
+				{"type": "text", "text": "Checking "},
+				{"type": "tool_use", "id": "toolu_1", "name": "lookup", "input": {"q": "a"}},
+				{"type": "text", "text": "two tools."},
+				{"type": "tool_use", "id": "toolu_2", "name": "fetch", "input": {}}
+			],
+			"usage": {"input_tokens": 12, "output_tokens": 30}
+		}`))
+	}))
+	defer server.Close()
+
+	resp, err := newTestClient(server.URL).Generate(context.Background(), GenerateRequest{UserPrompt: "test", MaxTokens: 50})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	if resp.Text != "Checking two tools." {
+		t.Errorf("Text = %q, want %q", resp.Text, "Checking two tools.")
+	}
+	if resp.StopReason != "tool_use" {
+		t.Errorf("StopReason = %q, want %q", resp.StopReason, "tool_use")
+	}
+	wantUsage := Usage{PromptTokens: 12, CompletionTokens: 30, TotalTokens: 42}
+	if resp.Usage != wantUsage {
+		t.Errorf("Usage = %+v, want %+v", resp.Usage, wantUsage)
+	}
+
+	// Input is not compared: anthropicContentBlock.Input is tagged json:"-"
+	// and has no UnmarshalJSON, so tool inputs are dropped when decoding.
+	wantTools := []ToolUse{{ID: "toolu_1", Name: "lookup"}, {ID: "toolu_2", Name: "fetch"}}
+	if len(resp.ToolUses) != len(wantTools) {
+		t.Fatalf("ToolUses count = %d, want %d", len(resp.ToolUses), len(wantTools))
+	}
+	for i, want := range wantTools {
+		got := resp.ToolUses[i]
+		if got.ID != want.ID || got.Name != want.Name {
+			t.Errorf("ToolUses[%d] = {ID:%q Name:%q}, want {ID:%q Name:%q}", i, got.ID, got.Name, want.ID, want.Name)
+		}
+	}
+}
+
+func TestAnthropicContentBlock_MarshalJSON(t *testing.T) {
+	tests := []struct {
+		name  string
+		block anthropicContentBlock
+		want  string
+	}{
+		{
+			name:  "text only",
+			block: anthropicContentBlock{Type: "text", Text: "hi"},
+			want:  `{"text":"hi","type":"text"}`,
+		},
+		{
+			name:  "tool_use with nil input emits empty object",
+			block: anthropicContentBlock{Type: "tool_use", ID: "toolu_1", Name: "lookup"},
+			want:  `{"id":"toolu_1","input":{},"name":"lookup","type":"tool_use"}`,
+		},
+		{
+			name:  "tool_use with input",
+			block: anthropicContentBlock{Type: "tool_use", ID: "toolu_1", Name: "lookup", Input: map[string]interface{}{"q": "a"}},
+			want:  `{"id":"toolu_1","input":{"q":"a"},"name":"lookup","type":"tool_use"}`,
+		},
+		{
+			name:  "tool_result with error",
+			block: anthropicContentBlock{Type: "tool_result", ToolUseID: "toolu_1", Content: "boom", IsError: true},
+			want:  `{"content":"boom","is_error":true,"tool_use_id":"toolu_1","type":"tool_result"}`,
+		},
+		{
+			name:  "tool_result without error omits is_error",
+			block: anthropicContentBlock{Type: "tool_result", ToolUseID: "toolu_1", Content: "ok"},
+			want:  `{"content":"ok","tool_use_id":"toolu_1","type":"tool_result"}`,
+		},
+		{
+			name:  "non tool_use with input keeps it",
+			block: anthropicContentBlock{Type: "text", Input: map[string]interface{}{"k": "v"}},
+			want:  `{"input":{"k":"v"},"type":"text"}`,
+		},
+		{
+			name:  "non tool_use with empty input omits it",
+			block: anthropicContentBlock{Type: "text", Input: map[string]interface{}{}},
+			want:  `{"type":"text"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := json.Marshal(tt.block)
+			if err != nil {
+				t.Fatalf("MarshalJSON() error = %v", err)
+			}
+			if string(got) != tt.want {
+				t.Errorf("MarshalJSON() = %s, want %s", got, tt.want)
+			}
+		})
 	}
 }
