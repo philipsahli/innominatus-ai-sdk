@@ -174,7 +174,7 @@ func (c *AnthropicClient) Generate(ctx context.Context, req GenerateRequest) (*G
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	// Read response body
 	body, err := io.ReadAll(httpResp.Body)
@@ -201,9 +201,10 @@ func (c *AnthropicClient) Generate(ctx context.Context, req GenerateRequest) (*G
 	var text string
 	var toolUses []ToolUse
 	for _, content := range apiResp.Content {
-		if content.Type == "text" {
+		switch content.Type {
+		case "text":
 			text += content.Text
-		} else if content.Type == "tool_use" {
+		case "tool_use":
 			toolUses = append(toolUses, ToolUse{
 				ID:    content.ID,
 				Name:  content.Name,
@@ -303,7 +304,7 @@ func (c *AnthropicClient) GenerateWithTools(ctx context.Context, req GenerateWit
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	// Read response body
 	body, err := io.ReadAll(httpResp.Body)
@@ -330,9 +331,10 @@ func (c *AnthropicClient) GenerateWithTools(ctx context.Context, req GenerateWit
 	var text string
 	var toolUses []ToolUse
 	for _, content := range apiResp.Content {
-		if content.Type == "text" {
+		switch content.Type {
+		case "text":
 			text += content.Text
-		} else if content.Type == "tool_use" {
+		case "tool_use":
 			toolUses = append(toolUses, ToolUse{
 				ID:    content.ID,
 				Name:  content.Name,

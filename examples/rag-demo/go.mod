@@ -1,6 +1,6 @@
 module example.com/rag-demo
 
-go 1.25.1
+go 1.24.1
 
 replace github.com/philipsahli/innominatus-ai-sdk => ../..
 
