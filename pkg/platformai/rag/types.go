@@ -63,6 +63,7 @@ type Config struct {
 	Model             string        // Model name for embeddings
 	EmbeddingDim      int           // Embedding dimension
 	Timeout           time.Duration // HTTP client timeout per call; 0 means 30s
+	BaseURL           string        // scheme+host and optional path prefix, without /v1/embeddings; empty means the provider's public API
 }
 
 // RetrieveRequest represents a request to retrieve relevant documents

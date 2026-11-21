@@ -21,6 +21,7 @@ type LLMConfig struct {
 	Temperature float32       // default for requests with Temperature 0; 0 here means "use the default" (0.3), so exact 0 is not expressible
 	MaxTokens   int           // default for requests with MaxTokens 0; 0 here means "use the default" (4096)
 	Timeout     time.Duration // HTTP client timeout per call; 0 means 60s, negative is invalid
+	BaseURL     string        // scheme+host and optional path prefix, without /v1/messages; empty means https://api.anthropic.com
 }
 
 // Validate validates the configuration

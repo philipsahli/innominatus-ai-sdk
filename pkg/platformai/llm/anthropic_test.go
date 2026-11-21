@@ -141,9 +141,9 @@ func TestAnthropicClient_Generate(t *testing.T) {
 
 			// Create client with mock server URL
 			client := &AnthropicClient{
-				apiKey: "test-key",
-				model:  "claude-sonnet-4-5-20250929",
-				apiURL: server.URL,
+				apiKey:  "test-key",
+				model:   "claude-sonnet-4-5-20250929",
+				baseURL: server.URL,
 				httpClient: &http.Client{
 					Timeout: defaultTimeout,
 				},
@@ -199,9 +199,9 @@ func TestAnthropicClient_GenerateWithContext(t *testing.T) {
 	defer server.Close()
 
 	client := &AnthropicClient{
-		apiKey: "test-key",
-		model:  "claude-sonnet-4-5-20250929",
-		apiURL: server.URL,
+		apiKey:  "test-key",
+		model:   "claude-sonnet-4-5-20250929",
+		baseURL: server.URL,
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 		},
@@ -259,9 +259,9 @@ func TestAnthropicClient_GenerateWithTools(t *testing.T) {
 	defer server.Close()
 
 	client := &AnthropicClient{
-		apiKey: "test-key",
-		model:  "claude-sonnet-4-5-20250929",
-		apiURL: server.URL,
+		apiKey:  "test-key",
+		model:   "claude-sonnet-4-5-20250929",
+		baseURL: server.URL,
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 		},
@@ -348,9 +348,9 @@ func TestAnthropicClient_ContextTimeout(t *testing.T) {
 	defer server.Close()
 
 	client := &AnthropicClient{
-		apiKey: "test-key",
-		model:  "claude-sonnet-4-5-20250929",
-		apiURL: server.URL,
+		apiKey:  "test-key",
+		model:   "claude-sonnet-4-5-20250929",
+		baseURL: server.URL,
 		httpClient: &http.Client{
 			Timeout: 1 * time.Second,
 		},

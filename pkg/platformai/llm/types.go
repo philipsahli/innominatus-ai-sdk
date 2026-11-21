@@ -10,6 +10,7 @@ type Config struct {
 	Temperature float32       // used when a request leaves Temperature at 0
 	MaxTokens   int           // used when a request leaves MaxTokens at 0
 	Timeout     time.Duration // HTTP client timeout per call; 0 means 60s
+	BaseURL     string        // scheme+host and optional path prefix, without /v1/messages; empty means https://api.anthropic.com
 }
 
 // GenerateRequest represents a request to generate text

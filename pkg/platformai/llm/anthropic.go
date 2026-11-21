@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	anthropicAPIURL     = "https://api.anthropic.com/v1/messages"
+	anthropicBaseURL    = "https://api.anthropic.com"
 	anthropicAPIVersion = "2023-06-01"
 	defaultTimeout      = 60 * time.Second
 )
@@ -25,7 +25,7 @@ type AnthropicClient struct {
 	temperature float32
 	maxTokens   int
 	httpClient  *http.Client
-	apiURL      string // Override for testing
+	baseURL     string
 }
 
 // NewAnthropicClient creates a new Anthropic client
@@ -34,12 +34,16 @@ func NewAnthropicClient(config Config) *AnthropicClient {
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
+	baseURL := config.BaseURL
+	if baseURL == "" {
+		baseURL = anthropicBaseURL
+	}
 	return &AnthropicClient{
 		apiKey:      config.APIKey,
 		model:       config.Model,
 		temperature: config.Temperature,
 		maxTokens:   config.MaxTokens,
-		apiURL:      anthropicAPIURL,
+		baseURL:     baseURL,
 		httpClient: &http.Client{
 			Timeout: timeout,
 			Transport: &http.Transport{
@@ -189,7 +193,7 @@ func (c *AnthropicClient) Generate(ctx context.Context, req GenerateRequest) (*G
 	}
 
 	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.apiURL, bytes.NewBuffer(jsonData))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.messagesURL(), bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -324,7 +328,7 @@ func (c *AnthropicClient) GenerateWithTools(ctx context.Context, req GenerateWit
 	}
 
 	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.apiURL, bytes.NewBuffer(jsonData))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.messagesURL(), bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -388,6 +392,12 @@ func (c *AnthropicClient) GenerateWithTools(ctx context.Context, req GenerateWit
 			TotalTokens:      apiResp.Usage.InputTokens + apiResp.Usage.OutputTokens,
 		},
 	}, nil
+}
+
+// messagesURL accepts a base URL with or without a trailing slash, so both
+// "https://proxy/prefix" and "https://proxy/prefix/" reach the same endpoint.
+func (c *AnthropicClient) messagesURL() string {
+	return strings.TrimRight(c.baseURL, "/") + "/v1/messages"
 }
 
 // resolveParams falls back to the client's configured values for zero request
