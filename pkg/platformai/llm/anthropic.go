@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,18 +20,22 @@ const (
 
 // AnthropicClient implements the Client interface for Anthropic's Claude API
 type AnthropicClient struct {
-	apiKey     string
-	model      string
-	httpClient *http.Client
-	apiURL     string // Override for testing
+	apiKey      string
+	model       string
+	temperature float32
+	maxTokens   int
+	httpClient  *http.Client
+	apiURL      string // Override for testing
 }
 
 // NewAnthropicClient creates a new Anthropic client
 func NewAnthropicClient(config Config) *AnthropicClient {
 	return &AnthropicClient{
-		apiKey: config.APIKey,
-		model:  config.Model,
-		apiURL: anthropicAPIURL,
+		apiKey:      config.APIKey,
+		model:       config.Model,
+		temperature: config.Temperature,
+		maxTokens:   config.MaxTokens,
+		apiURL:      anthropicAPIURL,
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 			Transport: &http.Transport{
@@ -153,11 +158,16 @@ type anthropicError struct {
 
 // Generate sends a request to the Anthropic API and returns the response
 func (c *AnthropicClient) Generate(ctx context.Context, req GenerateRequest) (*GenerateResponse, error) {
+	temperature, maxTokens, err := c.resolveParams(req.Temperature, req.MaxTokens)
+	if err != nil {
+		return nil, err
+	}
+
 	// Build request payload
 	payload := anthropicRequest{
 		Model:       c.model,
-		MaxTokens:   req.MaxTokens,
-		Temperature: req.Temperature,
+		MaxTokens:   maxTokens,
+		Temperature: temperature,
 		System:      req.SystemPrompt,
 		Messages: []anthropicMessage{
 			{
@@ -288,11 +298,16 @@ func (c *AnthropicClient) GenerateWithTools(ctx context.Context, req GenerateWit
 		})
 	}
 
+	temperature, maxTokens, err := c.resolveParams(req.Temperature, req.MaxTokens)
+	if err != nil {
+		return nil, err
+	}
+
 	// Build request payload
 	payload := anthropicRequest{
 		Model:       c.model,
-		MaxTokens:   req.MaxTokens,
-		Temperature: req.Temperature,
+		MaxTokens:   maxTokens,
+		Temperature: temperature,
 		System:      req.SystemPrompt,
 		Messages:    messages,
 		Tools:       req.Tools,
@@ -369,6 +384,25 @@ func (c *AnthropicClient) GenerateWithTools(ctx context.Context, req GenerateWit
 			TotalTokens:      apiResp.Usage.InputTokens + apiResp.Usage.OutputTokens,
 		},
 	}, nil
+}
+
+// resolveParams falls back to the client's configured values for zero request
+// fields. The request fields are not pointers, so zero means "unset" and an
+// exact temperature of 0 cannot be expressed.
+func (c *AnthropicClient) resolveParams(reqTemperature float32, reqMaxTokens int) (float32, int, error) {
+	temperature := reqTemperature
+	if temperature == 0 {
+		temperature = c.temperature
+	}
+	maxTokens := reqMaxTokens
+	if maxTokens == 0 {
+		maxTokens = c.maxTokens
+	}
+	// The API rejects max_tokens 0; fail before the round trip.
+	if maxTokens <= 0 {
+		return 0, 0, errors.New("max tokens must be set in the request or the client config")
+	}
+	return temperature, maxTokens, nil
 }
 
 // cleanLLMResponse removes markdown code blocks and extra whitespace
