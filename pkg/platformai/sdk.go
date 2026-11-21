@@ -18,6 +18,9 @@ type SDK struct {
 
 // New creates a new SDK instance
 func New(ctx context.Context, config *Config) (*SDK, error) {
+	if config == nil {
+		return nil, fmt.Errorf("invalid config: %w: config is nil", ErrInvalidConfig)
+	}
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
