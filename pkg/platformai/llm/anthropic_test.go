@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -310,6 +311,32 @@ func TestAnthropicClient_GenerateWithTools(t *testing.T) {
 	if resp.ToolUses[0].Name != "calculator" {
 		t.Errorf("GenerateWithTools() tool name = %v, want calculator", resp.ToolUses[0].Name)
 	}
+
+	// JSON numbers decode as float64.
+	wantInput := map[string]interface{}{"operation": "add", "a": float64(2), "b": float64(3)}
+	if !reflect.DeepEqual(resp.ToolUses[0].Input, wantInput) {
+		t.Errorf("GenerateWithTools() tool input = %v, want %v", resp.ToolUses[0].Input, wantInput)
+	}
+}
+
+func TestAnthropicContentBlock_RoundTrip(t *testing.T) {
+	in := anthropicContentBlock{
+		Type:  "tool_use",
+		ID:    "toolu_9",
+		Name:  "get_service_owner",
+		Input: map[string]interface{}{"service": "api"},
+	}
+	data, err := json.Marshal(in)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	var out anthropicContentBlock
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if !reflect.DeepEqual(out, in) {
+		t.Errorf("round trip = %+v, want %+v", out, in)
+	}
 }
 
 func TestAnthropicClient_ContextTimeout(t *testing.T) {
@@ -575,17 +602,12 @@ func TestAnthropicClient_Generate_MixedContent(t *testing.T) {
 		t.Errorf("Usage = %+v, want %+v", resp.Usage, wantUsage)
 	}
 
-	// Input is not compared: anthropicContentBlock.Input is tagged json:"-"
-	// and has no UnmarshalJSON, so tool inputs are dropped when decoding.
-	wantTools := []ToolUse{{ID: "toolu_1", Name: "lookup"}, {ID: "toolu_2", Name: "fetch"}}
-	if len(resp.ToolUses) != len(wantTools) {
-		t.Fatalf("ToolUses count = %d, want %d", len(resp.ToolUses), len(wantTools))
+	wantTools := []ToolUse{
+		{ID: "toolu_1", Name: "lookup", Input: map[string]interface{}{"q": "a"}},
+		{ID: "toolu_2", Name: "fetch", Input: map[string]interface{}{}},
 	}
-	for i, want := range wantTools {
-		got := resp.ToolUses[i]
-		if got.ID != want.ID || got.Name != want.Name {
-			t.Errorf("ToolUses[%d] = {ID:%q Name:%q}, want {ID:%q Name:%q}", i, got.ID, got.Name, want.ID, want.Name)
-		}
+	if !reflect.DeepEqual(resp.ToolUses, wantTools) {
+		t.Errorf("ToolUses = %+v, want %+v", resp.ToolUses, wantTools)
 	}
 }
 
