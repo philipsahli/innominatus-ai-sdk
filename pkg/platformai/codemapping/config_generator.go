@@ -3,6 +3,7 @@ package codemapping
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -21,6 +22,13 @@ func NewConfigGenerator(llmClient llm.Client) *ConfigGenerator {
 
 // Generate creates platform configuration based on repository analysis
 func (g *ConfigGenerator) Generate(ctx context.Context, analysis *RepositoryAnalysis) (*PlatformConfig, error) {
+	if g.llm == nil {
+		return nil, errors.New("config generator has no LLM client")
+	}
+	if analysis == nil {
+		return nil, errors.New("repository analysis is nil")
+	}
+
 	systemPrompt := `You are a Platform Engineering expert who generates optimal platform configurations.
 
 Your task: Analyze repository information and generate a complete platform configuration.
@@ -132,6 +140,9 @@ Respond with ONLY valid JSON, no markdown or explanation.`,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM generation failed: %w", err)
+	}
+	if response == nil {
+		return nil, errors.New("LLM client returned no response")
 	}
 
 	// Parse JSON response
