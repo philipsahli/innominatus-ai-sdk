@@ -160,6 +160,7 @@ jobs:
       run: |
         cd verification/codemapping && go build
         cd ../rag && go build
+        cd ../llm && go build
         cd ../..
 
     - name: Check build outputs are ignored
