@@ -5,17 +5,17 @@ type Config struct {
 	Provider    string
 	APIKey      string
 	Model       string
-	Temperature float32
-	MaxTokens   int
+	Temperature float32 // used when a request leaves Temperature at 0
+	MaxTokens   int     // used when a request leaves MaxTokens at 0
 }
 
 // GenerateRequest represents a request to generate text
 type GenerateRequest struct {
 	SystemPrompt string
 	UserPrompt   string
-	Temperature  float32
-	MaxTokens    int
-	Tools        []Tool // Optional tools for function calling
+	Temperature  float32 // 0 means "use the default" from Config; exact 0 is not expressible
+	MaxTokens    int     // 0 means "use the default" from Config
+	Tools        []Tool  // Optional tools for function calling
 }
 
 // GenerateResponse represents the response from the LLM
@@ -58,8 +58,8 @@ type ToolResult struct {
 type GenerateWithToolsRequest struct {
 	SystemPrompt string
 	Messages     []Message
-	Temperature  float32
-	MaxTokens    int
+	Temperature  float32 // 0 means "use the default" from Config; exact 0 is not expressible
+	MaxTokens    int     // 0 means "use the default" from Config
 	Tools        []Tool
 }
 

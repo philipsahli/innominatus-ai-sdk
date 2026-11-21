@@ -17,8 +17,8 @@ type LLMConfig struct {
 	Provider    string // "anthropic"
 	APIKey      string
 	Model       string  // "claude-sonnet-4-5-20250929"
-	Temperature float32 // default: 0.3
-	MaxTokens   int     // default: 4096
+	Temperature float32 // default for requests with Temperature 0; 0 here means "use the default" (0.3), so exact 0 is not expressible
+	MaxTokens   int     // default for requests with MaxTokens 0; 0 here means "use the default" (4096)
 }
 
 // Validate validates the configuration
