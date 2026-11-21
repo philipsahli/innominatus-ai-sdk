@@ -180,13 +180,25 @@ func (c *OpenAIEmbeddingClient) GenerateEmbeddings(ctx context.Context, texts []
 	return embeddings, nil
 }
 
+// applyTimeout overrides the constructor's default timeout only for a positive
+// value, so a zero Config.Timeout keeps the 30s default.
+func applyTimeout(c *http.Client, timeout time.Duration) {
+	if timeout > 0 {
+		c.Timeout = timeout
+	}
+}
+
 // NewEmbeddingProvider creates an embedding provider based on the config
 func NewEmbeddingProvider(config Config) (EmbeddingProvider, error) {
 	switch config.EmbeddingProvider {
 	case "voyageai", "voyage":
-		return NewVoyageEmbeddingClient(config.APIKey, config.Model), nil
+		c := NewVoyageEmbeddingClient(config.APIKey, config.Model)
+		applyTimeout(c.httpClient, config.Timeout)
+		return c, nil
 	case "openai":
-		return NewOpenAIEmbeddingClient(config.APIKey, config.Model), nil
+		c := NewOpenAIEmbeddingClient(config.APIKey, config.Model)
+		applyTimeout(c.httpClient, config.Timeout)
+		return c, nil
 	default:
 		return nil, fmt.Errorf("unsupported embedding provider: %s (supported: voyageai, openai)", config.EmbeddingProvider)
 	}
