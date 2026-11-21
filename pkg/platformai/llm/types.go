@@ -1,12 +1,15 @@
 package llm
 
+import "time"
+
 // Config holds LLM client configuration
 type Config struct {
 	Provider    string
 	APIKey      string
 	Model       string
-	Temperature float32 // used when a request leaves Temperature at 0
-	MaxTokens   int     // used when a request leaves MaxTokens at 0
+	Temperature float32       // used when a request leaves Temperature at 0
+	MaxTokens   int           // used when a request leaves MaxTokens at 0
+	Timeout     time.Duration // HTTP client timeout per call; 0 means 60s
 }
 
 // GenerateRequest represents a request to generate text

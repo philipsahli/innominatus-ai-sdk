@@ -1,6 +1,9 @@
 package rag
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Document represents a document stored in the RAG system
 type Document struct {
@@ -55,10 +58,11 @@ type VectorStore interface {
 
 // Config holds RAG module configuration
 type Config struct {
-	EmbeddingProvider string // Provider for embeddings ("anthropic", "voyageai", "openai")
-	APIKey            string // API key for embedding provider
-	Model             string // Model name for embeddings
-	EmbeddingDim      int    // Embedding dimension
+	EmbeddingProvider string        // Provider for embeddings ("anthropic", "voyageai", "openai")
+	APIKey            string        // API key for embedding provider
+	Model             string        // Model name for embeddings
+	EmbeddingDim      int           // Embedding dimension
+	Timeout           time.Duration // HTTP client timeout per call; 0 means 30s
 }
 
 // RetrieveRequest represents a request to retrieve relevant documents

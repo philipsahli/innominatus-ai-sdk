@@ -30,6 +30,10 @@ type AnthropicClient struct {
 
 // NewAnthropicClient creates a new Anthropic client
 func NewAnthropicClient(config Config) *AnthropicClient {
+	timeout := config.Timeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
 	return &AnthropicClient{
 		apiKey:      config.APIKey,
 		model:       config.Model,
@@ -37,7 +41,7 @@ func NewAnthropicClient(config Config) *AnthropicClient {
 		maxTokens:   config.MaxTokens,
 		apiURL:      anthropicAPIURL,
 		httpClient: &http.Client{
-			Timeout: defaultTimeout,
+			Timeout: timeout,
 			Transport: &http.Transport{
 				Proxy:               http.ProxyFromEnvironment,
 				MaxIdleConns:        10,
