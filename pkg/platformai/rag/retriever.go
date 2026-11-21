@@ -120,6 +120,9 @@ func (r *Retriever) AddDocuments(ctx context.Context, docs []struct {
 	if err != nil {
 		return fmt.Errorf("failed to generate embeddings: %w", err)
 	}
+	if len(embeddings) != len(docs) {
+		return fmt.Errorf("failed to generate embeddings: got %d embeddings for %d documents", len(embeddings), len(docs))
+	}
 
 	// Create documents with embeddings
 	documents := make([]Document, len(docs))
