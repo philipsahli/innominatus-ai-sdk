@@ -54,11 +54,7 @@ func main() {
 	fmt.Println("📚 Step 1: Adding documents to knowledge base...")
 	fmt.Println()
 
-	documents := []struct {
-		ID       string
-		Content  string
-		Metadata map[string]string
-	}{
+	documents := []rag.Document{
 		{
 			ID: "k8s-resources",
 			Content: `# Kubernetes Resource Best Practices
