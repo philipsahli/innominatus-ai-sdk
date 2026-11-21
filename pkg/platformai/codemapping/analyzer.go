@@ -89,7 +89,7 @@ func (a *Analyzer) parseGoMod(path string, analysis *RepositoryAnalysis) {
 	if err != nil {
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	inRequireBlock := false
@@ -176,7 +176,7 @@ func (a *Analyzer) parseRequirementsTxt(path string, analysis *RepositoryAnalysi
 	if err != nil {
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

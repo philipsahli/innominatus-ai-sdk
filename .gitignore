@@ -1,0 +1,12 @@
+# Binaries from `go build` in the example and verification folders
+/examples/code-analyzer/code-analyzer
+/examples/rag-demo/rag-demo
+/verification/codemapping/codemapping
+/verification/rag/rag
+*.exe
+*.test
+
+# Test and scan outputs
+coverage.out
+*.coverprofile
+gosec-report.json

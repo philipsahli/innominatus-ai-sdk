@@ -70,7 +70,7 @@ func (c *VoyageEmbeddingClient) GenerateEmbeddings(ctx context.Context, texts []
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -155,7 +155,7 @@ func (c *OpenAIEmbeddingClient) GenerateEmbeddings(ctx context.Context, texts []
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
