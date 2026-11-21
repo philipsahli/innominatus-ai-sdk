@@ -27,6 +27,7 @@ verification/
 ├── README.md             # This file
 ├── common/               # Shared helpers: Fail, Pass, PrintHeader, SaveJSON
 ├── codemapping/verify.go
+├── llm/verify.go
 └── rag/verify.go
 ```
 
@@ -217,23 +218,14 @@ artifact := map[string]interface{}{
 common.SaveJSON("my-feature", artifact)
 ```
 
-## Running Verifications in CI
+## Verifications and CI
+
+CI only compiles the scripts ("Build verification scripts" step in `.github/workflows/ci.yml`). It does not run them, because they call paid APIs. Run them locally:
 
 ```bash
-#!/bin/bash
-# ci-verify.sh
-
-set -e
-
-echo "Running verification suite..."
-
-# Run all verification scripts
-for script in verification/*_verify.go; do
-    echo "▶ $(basename $script)"
-    go run "$script"
+for dir in codemapping llm rag; do
+    (cd verification/$dir && go run .) || exit 1
 done
-
-echo "✅ All verifications passed"
 ```
 
 ## Troubleshooting
@@ -280,7 +272,7 @@ if result.Language == "" { ... }  // Check presence, not exact value
 
 ## Resources
 
-- See `codemapping/` and `rag/` for sample verification scripts
+- See `codemapping/`, `llm/` and `rag/` for sample verification scripts
 - Template: `verification/template.go`
 - Artifacts: `docs/verification/`
-- CI integration: Add to `.github/workflows/` or CI config
+- CI build step: `.github/workflows/ci.yml`
