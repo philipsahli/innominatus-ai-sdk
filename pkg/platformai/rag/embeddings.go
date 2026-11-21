@@ -7,13 +7,26 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
+
+const (
+	voyageBaseURL = "https://api.voyageai.com"
+	openAIBaseURL = "https://api.openai.com"
+)
+
+// embeddingsURL accepts a base URL with or without a trailing slash, so both
+// "https://proxy/prefix" and "https://proxy/prefix/" reach the same endpoint.
+func embeddingsURL(baseURL string) string {
+	return strings.TrimRight(baseURL, "/") + "/v1/embeddings"
+}
 
 // VoyageEmbeddingClient implements EmbeddingProvider using Voyage AI
 type VoyageEmbeddingClient struct {
 	apiKey     string
 	model      string
+	baseURL    string
 	httpClient *http.Client
 }
 
@@ -23,8 +36,9 @@ func NewVoyageEmbeddingClient(apiKey, model string) *VoyageEmbeddingClient {
 		model = "voyage-3" // Default model
 	}
 	return &VoyageEmbeddingClient{
-		apiKey: apiKey,
-		model:  model,
+		apiKey:  apiKey,
+		model:   model,
+		baseURL: voyageBaseURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -58,7 +72,7 @@ func (c *VoyageEmbeddingClient) GenerateEmbeddings(ctx context.Context, texts []
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.voyageai.com/v1/embeddings", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", embeddingsURL(c.baseURL), bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -99,6 +113,7 @@ func (c *VoyageEmbeddingClient) GenerateEmbeddings(ctx context.Context, texts []
 type OpenAIEmbeddingClient struct {
 	apiKey     string
 	model      string
+	baseURL    string
 	httpClient *http.Client
 }
 
@@ -108,8 +123,9 @@ func NewOpenAIEmbeddingClient(apiKey, model string) *OpenAIEmbeddingClient {
 		model = "text-embedding-3-small" // Default model
 	}
 	return &OpenAIEmbeddingClient{
-		apiKey: apiKey,
-		model:  model,
+		apiKey:  apiKey,
+		model:   model,
+		baseURL: openAIBaseURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -143,7 +159,7 @@ func (c *OpenAIEmbeddingClient) GenerateEmbeddings(ctx context.Context, texts []
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.openai.com/v1/embeddings", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", embeddingsURL(c.baseURL), bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -194,10 +210,16 @@ func NewEmbeddingProvider(config Config) (EmbeddingProvider, error) {
 	case "voyageai", "voyage":
 		c := NewVoyageEmbeddingClient(config.APIKey, config.Model)
 		applyTimeout(c.httpClient, config.Timeout)
+		if config.BaseURL != "" {
+			c.baseURL = config.BaseURL
+		}
 		return c, nil
 	case "openai":
 		c := NewOpenAIEmbeddingClient(config.APIKey, config.Model)
 		applyTimeout(c.httpClient, config.Timeout)
+		if config.BaseURL != "" {
+			c.baseURL = config.BaseURL
+		}
 		return c, nil
 	default:
 		return nil, fmt.Errorf("unsupported embedding provider: %s (supported: voyageai, openai)", config.EmbeddingProvider)

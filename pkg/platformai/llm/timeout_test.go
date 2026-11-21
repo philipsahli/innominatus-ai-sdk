@@ -48,7 +48,7 @@ func TestAnthropicClient_ConfiguredTimeoutEndsCall(t *testing.T) {
 	server := newSlowServer(t, 5*time.Second)
 
 	c := NewAnthropicClient(Config{APIKey: "k", Model: "m", MaxTokens: 10, Timeout: 50 * time.Millisecond})
-	c.apiURL = server.URL
+	c.baseURL = server.URL
 
 	start := time.Now()
 	_, err := c.Generate(context.Background(), GenerateRequest{UserPrompt: "hi"})
@@ -64,7 +64,7 @@ func TestAnthropicClient_ContextDeadlineShorterThanTimeout(t *testing.T) {
 	server := newSlowServer(t, 5*time.Second)
 
 	c := NewAnthropicClient(Config{APIKey: "k", Model: "m", MaxTokens: 10, Timeout: 30 * time.Second})
-	c.apiURL = server.URL
+	c.baseURL = server.URL
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()

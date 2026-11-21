@@ -75,7 +75,7 @@ func TestAnthropicClient_ConfigDefaults(t *testing.T) {
 				server := newCapturingServer(t, &got, &calls)
 
 				c := NewAnthropicClient(Config{APIKey: "test-key", Model: "m", Temperature: 0.3, MaxTokens: 4096})
-				c.apiURL = server.URL
+				c.baseURL = server.URL
 
 				if err := m.call(context.Background(), c, tc.reqTemperature, tc.reqMaxTokens); err != nil {
 					t.Fatalf("call failed: %v", err)
@@ -102,7 +102,7 @@ func TestAnthropicClient_ZeroMaxTokensEverywhere(t *testing.T) {
 			server := newCapturingServer(t, &got, &calls)
 
 			c := NewAnthropicClient(Config{APIKey: "test-key", Model: "m"})
-			c.apiURL = server.URL
+			c.baseURL = server.URL
 
 			if err := m.call(context.Background(), c, 0, 0); err == nil {
 				t.Fatal("expected error for max tokens 0 in request and config, got nil")

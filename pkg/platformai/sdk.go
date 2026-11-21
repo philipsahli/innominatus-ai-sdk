@@ -33,6 +33,7 @@ func New(ctx context.Context, config *Config) (*SDK, error) {
 		Temperature: config.LLM.Temperature,
 		MaxTokens:   config.LLM.MaxTokens,
 		Timeout:     config.LLM.Timeout,
+		BaseURL:     config.LLM.BaseURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM client: %w", err)
