@@ -15,6 +15,10 @@ func NewDetector() *Detector {
 
 // DetectLanguage determines the primary programming language
 func (d *Detector) DetectLanguage(analysis *RepositoryAnalysis) string {
+	if analysis == nil {
+		return "unknown"
+	}
+
 	// Check for specific marker files
 	for _, file := range analysis.Files {
 		switch file {
@@ -70,6 +74,10 @@ func (d *Detector) DetectLanguage(analysis *RepositoryAnalysis) string {
 
 // DetectFramework determines the framework being used
 func (d *Detector) DetectFramework(analysis *RepositoryAnalysis) string {
+	if analysis == nil {
+		return "none"
+	}
+
 	// Go frameworks
 	if hasAnyDependency(analysis.Dependencies,
 		"github.com/gin-gonic/gin",
