@@ -262,8 +262,9 @@ func TestSDK_LLMGenerateWithTools(t *testing.T) {
 	if tu.ID != "toolu_1" || tu.Name != "get_weather" {
 		t.Errorf("ToolUse = %+v, want id toolu_1, name get_weather", tu)
 	}
-	// Input is not asserted: the client drops tool_use input today (#39).
-	// Once that is fixed, also check tu.Input["city"] == "Bern".
+	if got := tu.Input["city"]; got != "Bern" {
+		t.Errorf("ToolUse.Input[city] = %v, want Bern", got)
+	}
 	if got := fake.last(t).Body.Model; got != testModel {
 		t.Errorf("model = %q, want %q", got, testModel)
 	}

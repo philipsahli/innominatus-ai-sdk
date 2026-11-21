@@ -440,11 +440,11 @@ func TestNewAnthropicClient(t *testing.T) {
 	}
 }
 
-func newTestClient(apiURL string) *AnthropicClient {
+func newTestClient(baseURL string) *AnthropicClient {
 	return &AnthropicClient{
 		apiKey:     "test-key",
 		model:      "claude-sonnet-4-5-20250929",
-		apiURL:     apiURL,
+		baseURL:    baseURL,
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 	}
 }
