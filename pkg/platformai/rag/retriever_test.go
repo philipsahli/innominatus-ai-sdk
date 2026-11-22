@@ -23,6 +23,8 @@ type fakeEmbedder struct {
 	err     error
 	// extra is added to the length of every batch response; negative drops embeddings.
 	extra int
+	// batchCalls records the texts of every GenerateEmbeddings call.
+	batchCalls [][]string
 }
 
 func (f *fakeEmbedder) GenerateEmbedding(ctx context.Context, text string) ([]float32, error) {
@@ -37,6 +39,7 @@ func (f *fakeEmbedder) GenerateEmbedding(ctx context.Context, text string) ([]fl
 }
 
 func (f *fakeEmbedder) GenerateEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
+	f.batchCalls = append(f.batchCalls, texts)
 	out := make([][]float32, 0, len(texts))
 	for _, text := range texts {
 		v, err := f.GenerateEmbedding(ctx, text)

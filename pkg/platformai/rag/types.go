@@ -10,20 +10,20 @@ type Document struct {
 	ID        string            // Unique identifier
 	Content   string            // Document content
 	Metadata  map[string]string // Optional metadata (e.g., source, title, category)
-	Embedding []float32         // Vector embedding of the document
+	Embedding []float32         // Vector embedding; Module.AddDocuments keeps a non-empty one instead of embedding Content
 }
 
 // Query represents a search query
 type Query struct {
 	Text     string  // Query text
 	TopK     int     // Number of results to return
-	MinScore float32 // Minimum similarity score threshold (0-1)
+	MinScore float32 // Minimum similarity score threshold (-1 to 1)
 }
 
 // SearchResult represents a document with similarity score
 type SearchResult struct {
 	Document Document
-	Score    float32 // Cosine similarity score (0-1)
+	Score    float32 // Cosine similarity score (-1 to 1)
 }
 
 // EmbeddingProvider defines the interface for generating embeddings
@@ -58,7 +58,7 @@ type VectorStore interface {
 
 // Config holds RAG module configuration
 type Config struct {
-	EmbeddingProvider string        // Provider for embeddings ("anthropic", "voyageai", "openai")
+	EmbeddingProvider string        // Provider for embeddings ("voyageai" or "voyage", "openai")
 	APIKey            string        // API key for embedding provider
 	Model             string        // Model name for embeddings
 	EmbeddingDim      int           // Embedding dimension

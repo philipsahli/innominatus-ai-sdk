@@ -79,9 +79,7 @@ func TestInMemoryVectorStoreAddBatch(t *testing.T) {
 		{name: "empty batch", docs: nil, wantCount: 0},
 		{name: "missing ID", docs: []Document{{Embedding: []float32{1}}}, wantErr: "document ID is required"},
 		{name: "missing embedding", docs: []Document{{ID: "a"}}, wantErr: "document embedding is required"},
-		// Pins today's partial write: documents before the invalid one stay
-		// stored. Tracked in https://github.com/philipsahli/innominatus-ai-sdk/issues/29.
-		{name: "invalid document after valid one", docs: []Document{valid("a"), {ID: "b"}, valid("c")}, wantErr: "document embedding is required", wantCount: 1},
+		{name: "invalid document after valid one", docs: []Document{valid("a"), {ID: "b"}, valid("c")}, wantErr: "document embedding is required", wantCount: 0},
 	}
 
 	for _, tt := range tests {
@@ -152,9 +150,7 @@ func TestInMemoryVectorStoreSearch(t *testing.T) {
 }
 
 func TestInMemoryVectorStoreSearchNegativeScoreValue(t *testing.T) {
-	// Pins today's score range: cosine similarity goes down to -1 although
-	// SearchResult.Score is documented as 0-1. Tracked in
-	// https://github.com/philipsahli/innominatus-ai-sdk/issues/29.
+	// SearchResult.Score is cosine similarity, so it goes down to -1.
 	ctx := context.Background()
 	s := NewInMemoryVectorStore()
 	if err := s.Add(ctx, Document{ID: "d", Embedding: []float32{-1, 0}}); err != nil {

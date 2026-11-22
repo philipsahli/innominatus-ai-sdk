@@ -109,33 +109,41 @@ func (r *Retriever) AddDocuments(ctx context.Context, docs []struct {
 	Content  string
 	Metadata map[string]string
 }) error {
-	// Extract content for batch embedding
-	contents := make([]string, len(docs))
-	for i, doc := range docs {
-		contents[i] = doc.Content
-	}
-
-	// Generate embeddings in batch
-	embeddings, err := r.embedder.GenerateEmbeddings(ctx, contents)
-	if err != nil {
-		return fmt.Errorf("failed to generate embeddings: %w", err)
-	}
-	if len(embeddings) != len(docs) {
-		return fmt.Errorf("failed to generate embeddings: got %d embeddings for %d documents", len(embeddings), len(docs))
-	}
-
-	// Create documents with embeddings
 	documents := make([]Document, len(docs))
 	for i, doc := range docs {
-		documents[i] = Document{
-			ID:        doc.ID,
-			Content:   doc.Content,
-			Metadata:  doc.Metadata,
-			Embedding: embeddings[i],
+		documents[i] = Document{ID: doc.ID, Content: doc.Content, Metadata: doc.Metadata}
+	}
+	return r.addDocuments(ctx, documents)
+}
+
+// addDocuments embeds, in one batch call, only the documents without an
+// embedding, so callers can supply precomputed vectors and skip the provider.
+func (r *Retriever) addDocuments(ctx context.Context, docs []Document) error {
+	var contents []string
+	var missing []int
+	for i, doc := range docs {
+		if len(doc.Embedding) == 0 {
+			contents = append(contents, doc.Content)
+			missing = append(missing, i)
 		}
 	}
 
-	// Add to store
+	documents := make([]Document, len(docs))
+	copy(documents, docs)
+
+	if len(missing) > 0 {
+		embeddings, err := r.embedder.GenerateEmbeddings(ctx, contents)
+		if err != nil {
+			return fmt.Errorf("failed to generate embeddings: %w", err)
+		}
+		if len(embeddings) != len(missing) {
+			return fmt.Errorf("failed to generate embeddings: got %d embeddings for %d documents", len(embeddings), len(missing))
+		}
+		for j, i := range missing {
+			documents[i].Embedding = embeddings[j]
+		}
+	}
+
 	if err := r.store.AddBatch(ctx, documents); err != nil {
 		return fmt.Errorf("failed to add documents: %w", err)
 	}

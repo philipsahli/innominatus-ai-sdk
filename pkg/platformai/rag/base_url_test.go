@@ -19,7 +19,7 @@ func (rt *recordingTransport) RoundTrip(r *http.Request) (*http.Response, error)
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
-		Body:       io.NopCloser(strings.NewReader(`{"data":[{"embedding":[1,0]}]}`)),
+		Body:       io.NopCloser(strings.NewReader(`{"data":[{"index":0,"embedding":[1,0]}]}`)),
 		Request:    r,
 	}, nil
 }

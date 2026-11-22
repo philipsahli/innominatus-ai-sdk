@@ -23,11 +23,8 @@ func NewInMemoryVectorStore() *InMemoryVectorStore {
 
 // Add adds a document to the store
 func (s *InMemoryVectorStore) Add(ctx context.Context, doc Document) error {
-	if doc.ID == "" {
-		return fmt.Errorf("document ID is required")
-	}
-	if len(doc.Embedding) == 0 {
-		return fmt.Errorf("document embedding is required")
+	if err := validateDocument(doc); err != nil {
+		return err
 	}
 
 	s.mu.Lock()
@@ -37,19 +34,30 @@ func (s *InMemoryVectorStore) Add(ctx context.Context, doc Document) error {
 	return nil
 }
 
-// AddBatch adds multiple documents to the store
+// AddBatch adds multiple documents to the store. It writes none of them if
+// any document is invalid.
 func (s *InMemoryVectorStore) AddBatch(ctx context.Context, docs []Document) error {
+	for _, doc := range docs {
+		if err := validateDocument(doc); err != nil {
+			return err
+		}
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for _, doc := range docs {
-		if doc.ID == "" {
-			return fmt.Errorf("document ID is required")
-		}
-		if len(doc.Embedding) == 0 {
-			return fmt.Errorf("document embedding is required")
-		}
 		s.documents[doc.ID] = doc
+	}
+	return nil
+}
+
+func validateDocument(doc Document) error {
+	if doc.ID == "" {
+		return fmt.Errorf("document ID is required")
+	}
+	if len(doc.Embedding) == 0 {
+		return fmt.Errorf("document embedding is required")
 	}
 	return nil
 }

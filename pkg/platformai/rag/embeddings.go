@@ -22,6 +22,39 @@ func embeddingsURL(baseURL string) string {
 	return strings.TrimRight(baseURL, "/") + "/v1/embeddings"
 }
 
+// embeddingsResponse is the response body shared by the Voyage and OpenAI
+// embeddings APIs.
+type embeddingsResponse struct {
+	Data []struct {
+		// A pointer tells a missing index apart from index 0.
+		Index     *int      `json:"index"`
+		Embedding []float32 `json:"embedding"`
+	} `json:"data"`
+}
+
+// byIndex places each embedding at the input position named by its index
+// field, because the APIs do not promise to return items in input order.
+func (r embeddingsResponse) byIndex(inputs int) ([][]float32, error) {
+	if len(r.Data) != inputs {
+		return nil, fmt.Errorf("invalid embeddings response: got %d embeddings for %d inputs", len(r.Data), inputs)
+	}
+	embeddings := make([][]float32, inputs)
+	for _, item := range r.Data {
+		if item.Index == nil {
+			return nil, fmt.Errorf("invalid embeddings response: missing index")
+		}
+		i := *item.Index
+		if i < 0 || i >= inputs {
+			return nil, fmt.Errorf("invalid embeddings response: index %d out of range for %d inputs", i, inputs)
+		}
+		if embeddings[i] != nil {
+			return nil, fmt.Errorf("invalid embeddings response: duplicate index %d", i)
+		}
+		embeddings[i] = item.Embedding
+	}
+	return embeddings, nil
+}
+
 // VoyageEmbeddingClient implements EmbeddingProvider using Voyage AI
 type VoyageEmbeddingClient struct {
 	apiKey     string
@@ -91,22 +124,12 @@ func (c *VoyageEmbeddingClient) GenerateEmbeddings(ctx context.Context, texts []
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var result struct {
-		Data []struct {
-			Embedding []float32 `json:"embedding"`
-		} `json:"data"`
-	}
-
+	var result embeddingsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	embeddings := make([][]float32, len(result.Data))
-	for i, data := range result.Data {
-		embeddings[i] = data.Embedding
-	}
-
-	return embeddings, nil
+	return result.byIndex(len(texts))
 }
 
 // OpenAIEmbeddingClient implements EmbeddingProvider using OpenAI
@@ -178,22 +201,12 @@ func (c *OpenAIEmbeddingClient) GenerateEmbeddings(ctx context.Context, texts []
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var result struct {
-		Data []struct {
-			Embedding []float32 `json:"embedding"`
-		} `json:"data"`
-	}
-
+	var result embeddingsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	embeddings := make([][]float32, len(result.Data))
-	for i, data := range result.Data {
-		embeddings[i] = data.Embedding
-	}
-
-	return embeddings, nil
+	return result.byIndex(len(texts))
 }
 
 // applyTimeout overrides the constructor's default timeout only for a positive
