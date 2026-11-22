@@ -2,17 +2,16 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"time"
 
 	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai"
+	"github.com/philipsahli/innominatus-ai-sdk/verification/common"
 )
 
-// Verification script template for testing features end-to-end
-// Copy this file and customize for your specific feature
+// Verification script template for testing features end-to-end.
+// Copy it to verification/<feature>/verify.go and run it from that directory:
+// common.SaveJSON writes artifacts relative to it, to docs/verification/.
 
 func main() {
 	ctx := context.Background()
@@ -22,7 +21,7 @@ func main() {
 
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
-		fail("ANTHROPIC_API_KEY environment variable not set")
+		common.Fail("ANTHROPIC_API_KEY environment variable not set")
 	}
 
 	config := &platformai.Config{
@@ -35,7 +34,7 @@ func main() {
 
 	sdk, err := platformai.New(ctx, config)
 	if err != nil {
-		fail("Failed to initialize SDK: %v", err)
+		common.Fail("Failed to initialize SDK: %v", err)
 	}
 
 	// 2. EXECUTE: Run actual feature code (not mocks!)
@@ -45,25 +44,28 @@ func main() {
 	// Customize this section for your specific feature
 	result, err := performFeatureOperation(ctx, sdk)
 	if err != nil {
-		fail("Feature operation failed: %v", err)
+		common.Fail("Feature operation failed: %v", err)
 	}
 
 	// 3. VERIFY: Check outputs meet requirements
 	fmt.Println("\n✓ Verifying results...")
 
 	if err := verifyResults(result); err != nil {
-		fail("Verification failed: %v", err)
+		common.Fail("Verification failed: %v", err)
 	}
 
 	// 4. SAVE ARTIFACTS: Capture outputs for review
 	fmt.Println("\n💾 Saving artifacts...")
 
-	if err := saveArtifacts(result); err != nil {
-		fail("Failed to save artifacts: %v", err)
+	// CUSTOMIZE the artifact name
+	path, err := common.SaveJSON("my-feature", result)
+	if err != nil {
+		common.Fail("Failed to save artifacts: %v", err)
 	}
+	fmt.Printf("  Saved: %s\n", path)
 
 	// 5. REPORT SUCCESS
-	pass("Verification completed successfully")
+	common.Pass("Verification completed successfully")
 	printSummary(result)
 }
 
@@ -114,33 +116,6 @@ func verifyResults(result interface{}) error {
 	return nil
 }
 
-// saveArtifacts saves verification outputs to docs/verification/
-func saveArtifacts(result interface{}) error {
-	// Create verification output directory
-	outputDir := "docs/verification"
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Generate timestamped filename
-	timestamp := time.Now().Format("20060102-150405")
-	filename := filepath.Join(outputDir, fmt.Sprintf("verification-%s.json", timestamp))
-
-	// Marshal result to JSON
-	data, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal result: %w", err)
-	}
-
-	// Write to file
-	if err := os.WriteFile(filename, data, 0644); err != nil {
-		return fmt.Errorf("failed to write artifact: %w", err)
-	}
-
-	fmt.Printf("  Saved: %s\n", filename)
-	return nil
-}
-
 // printSummary displays verification results
 // CUSTOMIZE THIS for your specific feature
 func printSummary(result interface{}) {
@@ -157,15 +132,4 @@ func printSummary(result interface{}) {
 
 	// Placeholder - replace with actual summary
 	fmt.Printf("  Result: %+v\n", result)
-}
-
-// fail prints error and exits
-func fail(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "❌ FAIL: "+format+"\n", args...)
-	os.Exit(1)
-}
-
-// pass prints success message
-func pass(format string, args ...interface{}) {
-	fmt.Printf("\n✅ PASS: "+format+"\n", args...)
 }

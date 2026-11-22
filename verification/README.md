@@ -25,16 +25,23 @@ Verification scripts test features end-to-end with **real API calls and actual o
 verification/
 ├── template.go           # Template for new verifications
 ├── README.md             # This file
-└── examples/             # Sample verification scripts
-    ├── codemapping_verify.go
-    └── rag_verify.go
+├── common/               # Shared helpers: Fail, Pass, PrintHeader, SaveJSON
+├── codemapping/verify.go
+└── rag/verify.go
 ```
+
+Each script is a `package main` in its own directory and imports
+`github.com/philipsahli/innominatus-ai-sdk/verification/common` instead of
+carrying its own helpers. `common.SaveJSON` writes to `../../docs/verification`,
+so run a script from its own directory. Artifacts are created with mode 0600 in
+a 0750 directory.
 
 ## Creating a Verification Script
 
 ### 1. Copy Template
 ```bash
-cp verification/template.go verification/my_feature_verify.go
+mkdir verification/my_feature
+cp verification/template.go verification/my_feature/verify.go
 ```
 
 ### 2. Customize for Your Feature
@@ -58,7 +65,7 @@ config := &platformai.Config{
 // Run actual feature code
 result, err := sdk.MyFeature().DoSomething(ctx, request)
 if err != nil {
-    fail("Operation failed: %v", err)
+    common.Fail("Operation failed: %v", err)
 }
 ```
 
@@ -76,8 +83,8 @@ if result.Quality < 0.8 {
 
 **Save Artifacts:**
 ```go
-// Outputs saved to docs/verification/
-saveArtifacts(result)
+// Writes docs/verification/my-feature-<timestamp>.json
+path, err := common.SaveJSON("my-feature", result)
 ```
 
 ### 3. Run Verification
@@ -87,8 +94,8 @@ saveArtifacts(result)
 export ANTHROPIC_API_KEY="your-key"
 export OPENAI_API_KEY="your-key"  # if using RAG
 
-# Run verification
-go run verification/my_feature_verify.go
+# Run verification from its own directory
+cd verification/my_feature && go run .
 ```
 
 ### 4. Review Artifacts
@@ -134,23 +141,25 @@ func main() {
         RepoPath: "../../testdata/sample-go-repo",
     })
     if err != nil {
-        fail("Analysis failed: %v", err)
+        common.Fail("Analysis failed: %v", err)
     }
 
     // Verify
     if result.Analysis.PrimaryLanguage != "go" {
-        fail("Expected language 'go', got '%s'", result.Analysis.PrimaryLanguage)
+        common.Fail("Expected language 'go', got '%s'", result.Analysis.PrimaryLanguage)
     }
 
     if result.Config == nil {
-        fail("No config generated")
+        common.Fail("No config generated")
     }
 
     // Save
-    saveArtifacts(result)
+    if _, err := common.SaveJSON("codemapping", result); err != nil {
+        common.Fail("Failed to save artifacts: %v", err)
+    }
 
     // Success
-    pass("Code analysis verification completed")
+    common.Pass("Code analysis verification completed")
 }
 ```
 
@@ -187,12 +196,12 @@ if result.Config == nil {
 ```go
 // ✅ Good: Specific error with context
 if len(results.Results) == 0 {
-    fail("Expected at least 1 search result, got 0")
+    common.Fail("Expected at least 1 search result, got 0")
 }
 
 // ❌ Bad: Generic error
 if len(results.Results) == 0 {
-    fail("Verification failed")
+    common.Fail("Verification failed")
 }
 ```
 
@@ -205,7 +214,7 @@ artifact := map[string]interface{}{
     "output":      result,
     "performance": metrics,
 }
-saveArtifacts(artifact)
+common.SaveJSON("my-feature", artifact)
 ```
 
 ## Running Verifications in CI
@@ -271,7 +280,7 @@ if result.Language == "" { ... }  // Check presence, not exact value
 
 ## Resources
 
-- See `examples/` for sample verification scripts
+- See `codemapping/` and `rag/` for sample verification scripts
 - Template: `verification/template.go`
 - Artifacts: `docs/verification/`
 - CI integration: Add to `.github/workflows/` or CI config
