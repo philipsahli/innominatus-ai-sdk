@@ -43,6 +43,12 @@ Guidelines:
 Output: Valid JSON matching the PlatformConfig schema.`
 
 	// Prepare file list summary
+	// FileCount is unset when the caller builds the analysis instead of Analyze.
+	fileCount := analysis.FileCount
+	if fileCount == 0 {
+		fileCount = len(analysis.Files)
+	}
+
 	fileList := analysis.Files
 	if len(fileList) > 15 {
 		fileList = fileList[:15]
@@ -126,7 +132,7 @@ Respond with ONLY valid JSON, no markdown or explanation.`,
 		analysis.DetectedFramework,
 		analysis.LanguageVersion,
 		analysis.HasDockerfile,
-		analysis.FileCount,
+		fileCount,
 		len(analysis.Dependencies),
 		strings.Join(depSummary, "\n"),
 		strings.Join(fileList, "\n"),
