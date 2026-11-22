@@ -337,10 +337,9 @@ func TestOutput(t *testing.T) {
 
 ## Continuous Testing
 
-Enable in `.claude/hooks.go`:
-- Run tests on file save
-- Run related tests after edit
-- Check coverage on commit
+The git pre-commit hook `.git-hooks/pre-commit` runs `gofmt -l`, `go vet`,
+`golangci-lint run` and `go test ./...` on every commit. `./setup.sh` installs it
+(`git config core.hooksPath .git-hooks`); `git commit --no-verify` skips it.
 
 ## Resources
 
