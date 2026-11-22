@@ -83,10 +83,16 @@ func TestDetectFramework(t *testing.T) {
 			},
 			"express",
 		},
-		// Pins today's behaviour, see #27: major-version module paths are not matched.
-		{"echo v4 path (#27)", deps("github.com/labstack/echo/v4"), "none"},
-		{"fiber v2 path (#27)", deps("github.com/gofiber/fiber/v2"), "none"},
-		{"chi v5 path (#27)", deps("github.com/go-chi/chi/v5"), "none"},
+		{"echo v4 path", deps("github.com/labstack/echo/v4"), "echo"},
+		{"fiber v2 path", deps("github.com/gofiber/fiber/v2"), "fiber"},
+		{"chi v5 path", deps("github.com/go-chi/chi/v5"), "chi"},
+		{"gin two-digit major", deps("github.com/gin-gonic/gin/v10"), "gin"},
+		{"echo-contrib alone", deps("github.com/labstack/echo-contrib"), "none"},
+		{"chi prefix only", deps("github.com/go-chi/chi-extra"), "none"},
+		{"bare /v suffix", deps("github.com/labstack/echo/v"), "none"},
+		{"non-numeric major", deps("github.com/labstack/echo/vx"), "none"},
+		{"subpackage path", deps("github.com/labstack/echo/v4/middleware"), "none"},
+		{"order kept: gin before echo", deps("github.com/labstack/echo/v4", "github.com/gin-gonic/gin"), "gin"},
 	}
 
 	d := codemapping.NewDetector()

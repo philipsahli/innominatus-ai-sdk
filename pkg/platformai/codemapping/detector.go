@@ -79,29 +79,19 @@ func (d *Detector) DetectFramework(analysis *RepositoryAnalysis) string {
 	}
 
 	// Go frameworks
-	if hasAnyDependency(analysis.Dependencies,
-		"github.com/gin-gonic/gin",
-	) {
+	if hasGoModule(analysis.Dependencies, "github.com/gin-gonic/gin") {
 		return "gin"
 	}
-	if hasAnyDependency(analysis.Dependencies,
-		"github.com/labstack/echo",
-	) {
+	if hasGoModule(analysis.Dependencies, "github.com/labstack/echo") {
 		return "echo"
 	}
-	if hasAnyDependency(analysis.Dependencies,
-		"github.com/gofiber/fiber",
-	) {
+	if hasGoModule(analysis.Dependencies, "github.com/gofiber/fiber") {
 		return "fiber"
 	}
-	if hasAnyDependency(analysis.Dependencies,
-		"github.com/go-chi/chi",
-	) {
+	if hasGoModule(analysis.Dependencies, "github.com/go-chi/chi") {
 		return "chi"
 	}
-	if hasAnyDependency(analysis.Dependencies,
-		"github.com/gorilla/mux",
-	) {
+	if hasGoModule(analysis.Dependencies, "github.com/gorilla/mux") {
 		return "gorilla-mux"
 	}
 
@@ -170,6 +160,33 @@ func (d *Detector) DetectFramework(analysis *RepositoryAnalysis) string {
 	}
 
 	return "none"
+}
+
+// hasGoModule reports whether deps contain modulePath or one of its
+// major-version paths (modulePath/v2, /v10, ...). Go modules from v2 on
+// carry the major version in their import path.
+func hasGoModule(deps map[string]string, modulePath string) bool {
+	for dep := range deps {
+		if dep == modulePath {
+			return true
+		}
+		if major, ok := strings.CutPrefix(dep, modulePath+"/v"); ok && isDigits(major) {
+			return true
+		}
+	}
+	return false
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // hasAnyDependency checks if any of the given dependencies exist
