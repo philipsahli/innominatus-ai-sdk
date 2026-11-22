@@ -103,6 +103,34 @@ jobs:
         name: security-report
         path: gosec-report.json
 
+  govulncheck:
+    name: Vulnerability Check
+    runs-on: ubuntu-24.04
+    env:
+      # Use the setup-go toolchain, never a go.mod-selected one
+      GOTOOLCHAIN: local
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7.0.1
+
+    # Latest stable Go, not the go.mod minimum: an old toolchain always reports stdlib CVEs fixed in later patch releases
+    - name: Set up Go
+      uses: actions/setup-go@v7.1.0
+      with:
+        go-version: stable
+        check-latest: true
+
+    - name: Install govulncheck
+      run: go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
+
+    - name: Scan root module
+      run: govulncheck ./...
+
+    - name: Scan rag-demo module
+      working-directory: examples/rag-demo
+      run: govulncheck ./...
+
   build:
     name: Build
     runs-on: ubuntu-24.04
