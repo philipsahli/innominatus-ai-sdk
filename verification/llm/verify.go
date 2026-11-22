@@ -2,15 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai"
 	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/llm"
+	"github.com/philipsahli/innominatus-ai-sdk/verification/common"
 )
 
 const (
@@ -29,12 +28,11 @@ type stepResult struct {
 }
 
 func main() {
-	fmt.Println("🔧 LLM Client Verification")
-	fmt.Println("==========================")
+	common.PrintHeader("🔧 LLM Client Verification")
 
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
-		fail("ANTHROPIC_API_KEY not set")
+		common.Fail("ANTHROPIC_API_KEY not set")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -48,7 +46,7 @@ func main() {
 		},
 	})
 	if err != nil {
-		fail("SDK initialization failed: %v", err)
+		common.Fail("SDK initialization failed: %v", err)
 	}
 	client := sdk.LLM()
 
@@ -78,12 +76,18 @@ func main() {
 	}
 
 	fmt.Println("\nSaving artifact...")
-	if err := saveArtifact(results); err != nil {
-		fail("Failed to save artifact: %v", err)
+	path, err := common.SaveJSON("llm", map[string]any{
+		"timestamp":    time.Now(),
+		"verification": "llm",
+		"steps":        results,
+	})
+	if err != nil {
+		common.Fail("Failed to save artifact: %v", err)
 	}
+	fmt.Printf("  Saved: %s\n", path)
 
 	if failed {
-		fail("LLM verification failed")
+		common.Fail("LLM verification failed")
 	}
 	fmt.Println("\n✅ PASS: LLM verification completed successfully")
 }
@@ -212,37 +216,4 @@ func verifyToolRoundTrip(ctx context.Context, client llm.Client) ([]*llm.Generat
 	}
 	fmt.Printf("  final text=%q\n", second.Text)
 	return responses, nil
-}
-
-func saveArtifact(results []stepResult) error {
-	outputDir := "../../docs/verification"
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return err
-	}
-
-	timestamp := time.Now().Format("20060102-150405")
-	filename := filepath.Join(outputDir, fmt.Sprintf("llm-%s.json", timestamp))
-
-	artifact := map[string]interface{}{
-		"timestamp":    time.Now(),
-		"verification": "llm",
-		"steps":        results,
-	}
-
-	data, err := json.MarshalIndent(artifact, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(filename, data, 0644); err != nil {
-		return err
-	}
-
-	fmt.Printf("  Saved: %s\n", filename)
-	return nil
-}
-
-func fail(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "❌ FAIL: "+format+"\n", args...)
-	os.Exit(1)
 }
