@@ -1,0 +1,27 @@
+#!/bin/sh
+# Install with: git config core.hooksPath .git-hooks (setup.sh does this).
+# Skip once with: git commit --no-verify
+# Checks the working tree, not only the staged changes.
+
+fail() {
+	echo "pre-commit: $1 failed; commit rejected" >&2
+	exit 1
+}
+
+echo "pre-commit: gofmt"
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+	echo "$unformatted" >&2
+	fail "gofmt (run: gofmt -w .)"
+fi
+
+echo "pre-commit: go vet"
+go vet ./... || fail "go vet"
+
+echo "pre-commit: golangci-lint"
+golangci-lint run ./... || fail "golangci-lint"
+
+echo "pre-commit: go test"
+go test ./... || fail "go test"
+
+echo "pre-commit: all checks passed"

@@ -344,8 +344,10 @@ func NewModule(llmClient *AnthropicClient) *Module
 4. **Before commit:** Format, lint, test coverage check
 
 ```bash
-# Pre-commit checks (automated via hooks.go)
+# Pre-commit checks. .git-hooks/pre-commit runs gofmt -l, go vet,
+# golangci-lint and go test; ./setup.sh installs it.
 gofmt -w .
+go vet ./...
 golangci-lint run
 go test ./... -cover
 go mod tidy

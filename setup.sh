@@ -177,11 +177,11 @@ else
     log_warning "No test data found in testdata/"
 fi
 
-# Check if hooks are executable
-if [ -f ".claude/hooks.go" ]; then
-    log_success "Claude hooks configured"
+# Install the versioned git pre-commit hook
+if git config core.hooksPath .git-hooks; then
+    log_success "Pre-commit hook installed (core.hooksPath=$(git config core.hooksPath))"
 else
-    log_warning "No Claude hooks found"
+    log_warning "Could not set core.hooksPath; run: git config core.hooksPath .git-hooks"
 fi
 
 # 10. Display Success Dashboard

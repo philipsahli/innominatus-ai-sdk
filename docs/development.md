@@ -4,6 +4,7 @@
 ```bash
 ./setup.sh
 ```
+`setup.sh` installs the pre-commit hook (`git config core.hooksPath .git-hooks`: gofmt, go vet, golangci-lint, go test); `git commit --no-verify` skips it.
 
 ## Commands
 ```bash
