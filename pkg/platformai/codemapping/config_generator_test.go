@@ -18,6 +18,7 @@ func TestConfigGeneratorGenerate(t *testing.T) {
 		LanguageVersion:   "1.21",
 		HasDockerfile:     true,
 		Files:             []string{"main.go", "go.mod"},
+		FileCount:         2,
 		Dependencies:      map[string]string{"github.com/gin-gonic/gin": "v1.9.1"},
 	}
 
@@ -77,6 +78,7 @@ func TestConfigGeneratorPromptLimits(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		analysis.Files = append(analysis.Files, fmt.Sprintf("file%02d.go", i))
 	}
+	analysis.FileCount = len(analysis.Files)
 	for i := 0; i < 12; i++ {
 		analysis.Dependencies[fmt.Sprintf("dep%02d", i)] = "v1"
 	}

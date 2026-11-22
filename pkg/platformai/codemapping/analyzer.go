@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,7 +32,9 @@ func (a *Analyzer) Analyze(ctx context.Context, repoPath string) (*RepositoryAna
 	}
 
 	// Walk directory and detect files
-	err := filepath.Walk(repoPath, func(path string, info os.FileInfo, err error) error {
+	// WalkDir avoids the Lstat per entry that filepath.Walk does; d carries
+	// the name and type from the directory read.
+	err := filepath.WalkDir(repoPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -44,10 +47,10 @@ func (a *Analyzer) Analyze(ctx context.Context, repoPath string) (*RepositoryAna
 		}
 
 		// Skip common directories
-		if info.IsDir() {
-			name := info.Name()
+		if d.IsDir() {
+			name := d.Name()
 			if name == ".git" || name == "node_modules" || name == "vendor" || name == "__pycache__" || name == "dist" || name == "build" || name == ".next" {
-				return filepath.SkipDir
+				return fs.SkipDir
 			}
 			return nil
 		}
@@ -56,7 +59,7 @@ func (a *Analyzer) Analyze(ctx context.Context, repoPath string) (*RepositoryAna
 		analysis.Files = append(analysis.Files, relPath)
 
 		// Process special files
-		switch info.Name() {
+		switch d.Name() {
 		case "go.mod":
 			a.parseGoMod(path, analysis)
 		case "package.json":
@@ -67,7 +70,7 @@ func (a *Analyzer) Analyze(ctx context.Context, repoPath string) (*RepositoryAna
 			a.parsePyprojectToml(path, analysis)
 		case "Dockerfile":
 			analysis.HasDockerfile = true
-			// #nosec G304 - path is validated by filepath.Walk and comes from repository scan
+			// #nosec G304 - path is validated by filepath.WalkDir and comes from repository scan
 			content, _ := os.ReadFile(path)
 			analysis.DockerfileContent = string(content)
 		}
@@ -79,12 +82,13 @@ func (a *Analyzer) Analyze(ctx context.Context, repoPath string) (*RepositoryAna
 		return nil, fmt.Errorf("failed to walk repository: %w", err)
 	}
 
+	analysis.FileCount = len(analysis.Files)
 	return analysis, nil
 }
 
 // parseGoMod extracts Go module information
 func (a *Analyzer) parseGoMod(path string, analysis *RepositoryAnalysis) {
-	// #nosec G304 - path is validated by filepath.Walk and comes from repository scan
+	// #nosec G304 - path is validated by filepath.WalkDir and comes from repository scan
 	file, err := os.Open(path)
 	if err != nil {
 		return
@@ -137,7 +141,7 @@ func (a *Analyzer) parseGoMod(path string, analysis *RepositoryAnalysis) {
 
 // parsePackageJSON extracts Node.js package information
 func (a *Analyzer) parsePackageJSON(path string, analysis *RepositoryAnalysis) {
-	// #nosec G304 - path is validated by filepath.Walk and comes from repository scan
+	// #nosec G304 - path is validated by filepath.WalkDir and comes from repository scan
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return
@@ -171,7 +175,7 @@ func (a *Analyzer) parsePackageJSON(path string, analysis *RepositoryAnalysis) {
 
 // parseRequirementsTxt extracts Python dependencies from requirements.txt
 func (a *Analyzer) parseRequirementsTxt(path string, analysis *RepositoryAnalysis) {
-	// #nosec G304 - path is validated by filepath.Walk and comes from repository scan
+	// #nosec G304 - path is validated by filepath.WalkDir and comes from repository scan
 	file, err := os.Open(path)
 	if err != nil {
 		return
@@ -214,7 +218,7 @@ func (a *Analyzer) parseRequirementsTxt(path string, analysis *RepositoryAnalysi
 
 // parsePyprojectToml extracts Python project information from pyproject.toml
 func (a *Analyzer) parsePyprojectToml(path string, analysis *RepositoryAnalysis) {
-	// #nosec G304 - path is validated by filepath.Walk and comes from repository scan
+	// #nosec G304 - path is validated by filepath.WalkDir and comes from repository scan
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return
