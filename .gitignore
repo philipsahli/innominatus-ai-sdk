@@ -1,5 +1,6 @@
 # Binaries from `go build` in the example and verification folders
 /examples/code-analyzer/code-analyzer
+/examples/code-analyzer/platform-ai-example
 /examples/rag-demo/rag-demo
 /verification/codemapping/codemapping
 /verification/rag/rag
