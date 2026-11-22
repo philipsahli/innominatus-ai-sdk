@@ -73,12 +73,39 @@ func TestConfigGeneratorGenerate(t *testing.T) {
 	}
 }
 
+// A caller-built analysis may leave FileCount unset; the prompt must not say 0 files.
+func TestConfigGeneratorPromptFileCount(t *testing.T) {
+	tests := []struct {
+		name      string
+		fileCount int
+		want      string
+	}{
+		{"unset falls back to len(Files)", 0, "Total Files: 2"},
+		{"set value wins", 10003, "Total Files: 10003"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			analysis := &codemapping.RepositoryAnalysis{
+				Files:        []string{"main.go", "go.mod"},
+				FileCount:    tt.fileCount,
+				Dependencies: map[string]string{},
+			}
+			client := newFakeClient(validConfigJSON)
+			if _, err := codemapping.NewConfigGenerator(client).Generate(context.Background(), analysis); err != nil {
+				t.Fatalf("Generate: %v", err)
+			}
+			if prompt := client.requests[0].UserPrompt; !strings.Contains(prompt, tt.want) {
+				t.Errorf("UserPrompt does not contain %q", tt.want)
+			}
+		})
+	}
+}
+
 func TestConfigGeneratorPromptLimits(t *testing.T) {
 	analysis := &codemapping.RepositoryAnalysis{Dependencies: map[string]string{}}
 	for i := 0; i < 20; i++ {
 		analysis.Files = append(analysis.Files, fmt.Sprintf("file%02d.go", i))
 	}
-	analysis.FileCount = len(analysis.Files)
 	for i := 0; i < 12; i++ {
 		analysis.Dependencies[fmt.Sprintf("dep%02d", i)] = "v1"
 	}

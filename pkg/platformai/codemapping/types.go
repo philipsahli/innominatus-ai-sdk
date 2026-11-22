@@ -5,7 +5,7 @@ type RepositoryAnalysis struct {
 	PrimaryLanguage   string
 	DetectedFramework string
 	Files             []string
-	FileCount         int // len(Files); set by Analyzer.Analyze
+	FileCount         int // len(Files); set by Analyzer.Analyze, 0 means use len(Files)
 	Dependencies      map[string]string
 	HasDockerfile     bool
 	DockerfileContent string
