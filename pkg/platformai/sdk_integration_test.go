@@ -303,11 +303,12 @@ func newFakeEmbeddings(t *testing.T) *httptest.Server {
 			t.Errorf("embedding model = %q, want %q", req.Model, testEmbedModel)
 		}
 		type item struct {
+			Index     int       `json:"index"`
 			Embedding []float32 `json:"embedding"`
 		}
 		data := make([]item, len(req.Input))
 		for i, in := range req.Input {
-			data[i] = item{Embedding: keywordEmbedding(in)}
+			data[i] = item{Index: i, Embedding: keywordEmbedding(in)}
 		}
 		w.Header().Set("content-type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]interface{}{"data": data}); err != nil {

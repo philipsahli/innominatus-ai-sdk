@@ -126,20 +126,47 @@ func TestModuleErrors(t *testing.T) {
 	}
 }
 
-func TestModuleAddDocumentsIgnoresCallerEmbedding(t *testing.T) {
-	// Pins today's behaviour: Document.Embedding passed by the caller is
-	// dropped and the content is re-embedded. Tracked in
-	// https://github.com/philipsahli/innominatus-ai-sdk/issues/29.
+func TestModuleAddDocumentsKeepsCallerEmbedding(t *testing.T) {
 	ctx := context.Background()
-	m := newTestModule(&fakeEmbedder{vectors: testVectors()})
-	if err := m.AddDocuments(ctx, []Document{{ID: "a", Content: "d", Embedding: []float32{9, 9}}}); err != nil {
-		t.Fatal(err)
+	embedder := &fakeEmbedder{vectors: testVectors()}
+	m := newTestModule(embedder)
+	docs := []Document{
+		{ID: "pre", Content: "not in testVectors", Embedding: []float32{-1, 0}},
+		{ID: "b", Content: "b"},
+		{ID: "d", Content: "d"},
 	}
-	doc, err := m.GetDocument(ctx, "a")
+	if err := m.AddDocuments(ctx, docs); err != nil {
+		t.Fatalf("AddDocuments() error = %v", err)
+	}
+
+	if len(embedder.batchCalls) != 1 || strings.Join(embedder.batchCalls[0], ",") != "b,d" {
+		t.Errorf("GenerateEmbeddings calls = %v, want one call with [b d]", embedder.batchCalls)
+	}
+	pre, err := m.GetDocument(ctx, "pre")
+	if err != nil || len(pre.Embedding) != 2 || pre.Embedding[0] != -1 {
+		t.Errorf("GetDocument(pre) = %+v, %v, want caller embedding [-1 0]", pre, err)
+	}
+
+	resp, err := m.Retrieve(ctx, RetrieveRequest{Query: "query", TopK: 3, MinScore: -1})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Retrieve() error = %v", err)
 	}
-	if len(doc.Embedding) != 2 || doc.Embedding[0] != 0 || doc.Embedding[1] != 1 {
-		t.Errorf("Embedding = %v, want provider embedding [0 1]", doc.Embedding)
+	if got := strings.Join(resultIDs(resp.Results), ","); got != "b,d,pre" {
+		t.Errorf("Retrieve() IDs = %s, want b,d,pre", got)
+	}
+}
+
+func TestModuleAddDocumentsAllPreEmbeddedSkipsProvider(t *testing.T) {
+	ctx := context.Background()
+	embedder := &fakeEmbedder{vectors: testVectors()}
+	m := newTestModule(embedder)
+	if err := m.AddDocuments(ctx, []Document{{ID: "a", Content: "a", Embedding: []float32{1, 0}}}); err != nil {
+		t.Fatalf("AddDocuments() error = %v", err)
+	}
+	if len(embedder.batchCalls) != 0 {
+		t.Errorf("GenerateEmbeddings calls = %v, want none", embedder.batchCalls)
+	}
+	if n, _ := m.Count(ctx); n != 1 {
+		t.Errorf("Count() = %d, want 1", n)
 	}
 }

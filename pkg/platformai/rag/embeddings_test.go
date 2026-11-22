@@ -102,7 +102,7 @@ func TestEmbeddingClientsSendRequest(t *testing.T) {
 					if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
 						t.Errorf("decode body: %v", err)
 					}
-					_, _ = io.WriteString(w, `{"data":[{"embedding":[0.1,0.2]},{"embedding":[0.3,0.4]}]}`)
+					_, _ = io.WriteString(w, `{"data":[{"index":0,"embedding":[0.1,0.2]},{"index":1,"embedding":[0.3,0.4]}]}`)
 				})
 
 				got, err := cc.build(model, hc).GenerateEmbeddings(context.Background(), []string{"one", "two"})
@@ -133,10 +133,10 @@ func TestEmbeddingClientsResponses(t *testing.T) {
 		wantSingle []float32
 		wantBatch  int
 	}{
-		{name: "success", status: 200, body: `{"data":[{"embedding":[1,2]}]}`, wantSingle: []float32{1, 2}, wantBatch: 1},
+		{name: "success", status: 200, body: `{"data":[{"index":0,"embedding":[1,2]}]}`, wantSingle: []float32{1, 2}, wantBatch: 1},
 		{name: "non-200 with body", status: 429, body: `rate limited`, wantErr: "API request failed with status 429: rate limited"},
 		{name: "malformed JSON", status: 200, body: `{"data":`, wantErr: "failed to decode response"},
-		{name: "empty data", status: 200, body: `{"data":[]}`, wantErr: "no embeddings returned", wantBatch: 0},
+		{name: "empty data", status: 200, body: `{"data":[]}`, wantErr: "got 0 embeddings for 1 inputs"},
 		{name: "cancelled context", status: 200, body: `{"data":[]}`, cancelCtx: true, wantErr: "failed to send request"},
 	}
 
@@ -168,10 +168,7 @@ func TestEmbeddingClientsResponses(t *testing.T) {
 				}
 
 				batch, err := client.GenerateEmbeddings(ctx, []string{"text"})
-				// An empty data array is not an error for the batch call; Retriever.AddDocuments
-				// catches the count mismatch.
-				batchFails := tt.wantErr != "" && tt.name != "empty data"
-				if batchFails {
+				if tt.wantErr != "" {
 					if err == nil {
 						t.Errorf("GenerateEmbeddings() error = nil, want error")
 					}
@@ -185,23 +182,48 @@ func TestEmbeddingClientsResponses(t *testing.T) {
 	}
 }
 
-func TestEmbeddingClientsTrustResponseOrder(t *testing.T) {
-	// Pins today's behaviour: embeddings are matched to inputs by array
-	// position and the API's index field is ignored. Tracked in
-	// https://github.com/philipsahli/innominatus-ai-sdk/issues/29.
+func TestEmbeddingClientsPlaceByIndex(t *testing.T) {
 	for _, cc := range embeddingClientCases() {
 		t.Run(cc.name, func(t *testing.T) {
 			hc, _ := startServer(t, func(w http.ResponseWriter, r *http.Request) {
-				_, _ = io.WriteString(w, `{"data":[{"index":1,"embedding":[2]},{"index":0,"embedding":[1]}]}`)
+				_, _ = io.WriteString(w, `{"data":[{"index":2,"embedding":[3]},{"index":1,"embedding":[2]},{"index":0,"embedding":[1]}]}`)
 			})
-			got, err := cc.build("", hc).GenerateEmbeddings(context.Background(), []string{"first", "second"})
+			got, err := cc.build("", hc).GenerateEmbeddings(context.Background(), []string{"first", "second", "third"})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(got) != 2 || got[0][0] != 2 || got[1][0] != 1 {
-				t.Errorf("GenerateEmbeddings() = %v, want [[2] [1]] (array order)", got)
+			if len(got) != 3 || got[0][0] != 1 || got[1][0] != 2 || got[2][0] != 3 {
+				t.Errorf("GenerateEmbeddings() = %v, want [[1] [2] [3]] (by index)", got)
 			}
 		})
+	}
+}
+
+func TestEmbeddingClientsRejectMalformedIndexes(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		wantErr string
+	}{
+		{name: "missing index", body: `{"data":[{"index":0,"embedding":[1]},{"embedding":[2]}]}`, wantErr: "missing index"},
+		{name: "duplicate index", body: `{"data":[{"index":0,"embedding":[1]},{"index":0,"embedding":[2]}]}`, wantErr: "duplicate index 0"},
+		{name: "index out of range", body: `{"data":[{"index":0,"embedding":[1]},{"index":2,"embedding":[2]}]}`, wantErr: "index 2 out of range"},
+		{name: "negative index", body: `{"data":[{"index":-1,"embedding":[1]},{"index":0,"embedding":[2]}]}`, wantErr: "index -1 out of range"},
+		{name: "fewer than inputs", body: `{"data":[{"index":0,"embedding":[1]}]}`, wantErr: "got 1 embeddings for 2 inputs"},
+		{name: "more than inputs", body: `{"data":[{"index":0,"embedding":[1]},{"index":1,"embedding":[2]},{"index":2,"embedding":[3]}]}`, wantErr: "got 3 embeddings for 2 inputs"},
+	}
+	for _, cc := range embeddingClientCases() {
+		for _, tt := range tests {
+			t.Run(cc.name+"/"+tt.name, func(t *testing.T) {
+				hc, _ := startServer(t, func(w http.ResponseWriter, r *http.Request) {
+					_, _ = io.WriteString(w, tt.body)
+				})
+				got, err := cc.build("", hc).GenerateEmbeddings(context.Background(), []string{"first", "second"})
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("GenerateEmbeddings() = %v, %v, want error containing %q", got, err, tt.wantErr)
+				}
+			})
+		}
 	}
 }
 
@@ -217,9 +239,7 @@ func TestNewEmbeddingProvider(t *testing.T) {
 		{name: "openai", provider: "openai", want: "openai"},
 		{name: "unknown", provider: "cohere", wantErr: true},
 		{name: "empty", provider: "", wantErr: true},
-		// Pins today's provider list: the Config comment names anthropic but
-		// it is rejected. Tracked in
-		// https://github.com/philipsahli/innominatus-ai-sdk/issues/29.
+		// Anthropic has no embeddings API.
 		{name: "anthropic", provider: "anthropic", wantErr: true},
 	}
 

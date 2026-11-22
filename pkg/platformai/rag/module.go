@@ -40,26 +40,10 @@ func (m *Module) AddDocument(ctx context.Context, id, content string, metadata m
 	return m.retriever.AddDocument(ctx, id, content, metadata)
 }
 
-// AddDocuments adds multiple documents to the knowledge base
+// AddDocuments adds multiple documents to the knowledge base. Documents with
+// a non-empty Embedding keep it; the rest are embedded in one batch call.
 func (m *Module) AddDocuments(ctx context.Context, docs []Document) error {
-	// Convert to internal format for retriever
-	internalDocs := make([]struct {
-		ID       string
-		Content  string
-		Metadata map[string]string
-	}, len(docs))
-	for i, doc := range docs {
-		internalDocs[i] = struct {
-			ID       string
-			Content  string
-			Metadata map[string]string
-		}{
-			ID:       doc.ID,
-			Content:  doc.Content,
-			Metadata: doc.Metadata,
-		}
-	}
-	return m.retriever.AddDocuments(ctx, internalDocs)
+	return m.retriever.addDocuments(ctx, docs)
 }
 
 // Retrieve retrieves relevant documents for a query
