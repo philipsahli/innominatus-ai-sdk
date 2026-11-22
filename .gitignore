@@ -4,6 +4,7 @@
 /examples/rag-demo/rag-demo
 /verification/codemapping/codemapping
 /verification/rag/rag
+/verification/llm/llm
 *.exe
 *.test
 
