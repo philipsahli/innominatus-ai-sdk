@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -332,4 +333,76 @@ func TestAnalyzerErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAnalyzerFilesMatchFilepathWalk guards #15: the switch to WalkDir must
+// keep Files exactly as the filepath.Walk version produced it, order included.
+func TestAnalyzerFilesMatchFilepathWalk(t *testing.T) {
+	tree := writeRepo(t, map[string]string{
+		"Dockerfile":                "FROM scratch",
+		"go.mod":                    "module x\n\ngo 1.24\n",
+		"main.go":                   "package main",
+		"README.md":                 "",
+		"a/b/c/deep.py":             "",
+		"a/B.txt":                   "",
+		"a/b.txt":                   "",
+		"cmd/health/health.go":      "",
+		"web/package.json":          "{}",
+		"web/src/index_test.js":     "",
+		".github/workflows/ci.yaml": "",
+		"node_modules/x/index.js":   "",
+		".git/HEAD":                 "",
+		"vendor/y/y.go":             "",
+		"pkg/__pycache__/m.pyc":     "",
+		"pkg/dist/out.js":           "",
+		"pkg/build/out.o":           "",
+		"pkg/.next/cache":           "",
+		"pkg/keep.go":               "",
+	})
+
+	roots := map[string]string{"temp tree": tree}
+	for _, repo := range []string{"sample-go-repo", "sample-node-repo", "sample-python-repo"} {
+		roots[repo] = filepath.Join(fixturesDir, repo)
+	}
+
+	for name, root := range roots {
+		t.Run(name, func(t *testing.T) {
+			got, err := codemapping.NewAnalyzer().Analyze(context.Background(), root)
+			if err != nil {
+				t.Fatalf("Analyze: %v", err)
+			}
+			want := filepathWalkFiles(t, root)
+			if !reflect.DeepEqual(got.Files, want) {
+				t.Errorf("Files differ from filepath.Walk\n got: %q\nwant: %q", got.Files, want)
+			}
+			if got.FileCount != len(got.Files) {
+				t.Errorf("FileCount = %d, len(Files) = %d", got.FileCount, len(got.Files))
+			}
+		})
+	}
+}
+
+// filepathWalkFiles is the file listing of Analyze before #15, kept as the oracle.
+func filepathWalkFiles(t *testing.T, root string) []string {
+	t.Helper()
+	files := []string{}
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			switch info.Name() {
+			case ".git", "node_modules", "vendor", "__pycache__", "dist", "build", ".next":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		rel, _ := filepath.Rel(root, path)
+		files = append(files, rel)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return files
 }
