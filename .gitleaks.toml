@@ -9,4 +9,10 @@ description = "redaction test fixtures (fake keys)"
 paths = [
   '''^pkg/redact/redact_test\.go$''',
   '''^pkg/redact/fieldname_test\.go$''',
+  # Redaction before every model call (model.Instrument): fake tokens,
+  # an AWS key ID and API-key fields in prompts and tool results.
+  '''^pkg/model/instrument_order_test\.go$''',
+  '''^pkg/model/instrument_redact_test\.go$''',
+  '''^pkg/model/instrument_audit_test\.go$''',
+  '''^pkg/model/tools_redact_test\.go$''',
 ]

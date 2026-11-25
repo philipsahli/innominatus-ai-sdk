@@ -1,0 +1,41 @@
+{
+  "calls": [
+    {
+      "prompt_version": "example-v1",
+      "prompt_hash": "85e6f5a4f8098ca50801d1ee6839372d2d05faa8482a2ad4c97435d97cd4986c",
+      "caller": "",
+      "via": "",
+      "request": {
+        "system": "You answer in JSON.",
+        "turns": [
+          {
+            "Role": "user",
+            "Text": "deploy with password=[redacted]"
+          }
+        ],
+        "max_tokens": 64
+      },
+      "anthropic_body": {
+        "max_tokens": 64,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "deploy with password=[redacted]",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "golden-model",
+        "system": [
+          {
+            "text": "You answer in JSON.",
+            "type": "text"
+          }
+        ]
+      }
+    }
+  ]
+}
