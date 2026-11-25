@@ -50,6 +50,7 @@ func main() {
 - **Code Analysis** - Detects languages, frameworks, dependencies
 - **AI Config Generation** - Creates optimized platform configurations
 - **RAG Support** - Build AI assistants with custom knowledge bases
+- **Redaction** (`pkg/redact`) - Removes credentials from prompts and log lines: known values, token and key patterns, credential-named fields, Terraform defaults. `pkg/redact/redacttest` has a corpus of fake secrets to test your own prompt path
 
 ## Examples
 

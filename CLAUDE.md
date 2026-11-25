@@ -135,6 +135,9 @@ func Analyze(ctx context.Context, repoPath string) error {
 ### Domain Structure
 
 ```
+pkg/redact/             # Credential redaction for prompts and logs (no SDK deps)
+└── redacttest/         # Fake-secret corpus for tests
+
 pkg/platformai/
 ├── sdk.go              # Main SDK entry point
 ├── config.go           # Configuration
