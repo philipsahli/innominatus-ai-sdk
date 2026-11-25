@@ -369,7 +369,11 @@ func (l Loop) runTools(ctx context.Context, call, try, maxTries int, rep Reply) 
 	return []Turn{asked, results}
 }
 
-// retryTurns are the model's rejected answer and the feedback on it.
+// RetryTurns are the model's rejected answer and the feedback on it, as
+// Run sends them before the next try. A job queue that retries outside
+// Run uses it so its retries send the same bytes.
+func (l Loop) RetryTurns(t Try) []Turn { return l.retryTurns(t) }
+
 func (l Loop) retryTurns(t Try) []Turn {
 	text := t.Reply.Text
 	if text == "" && l.EmptyAnswer != "" {
