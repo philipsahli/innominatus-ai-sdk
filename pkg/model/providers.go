@@ -381,6 +381,14 @@ func (g *guarded) Call(ctx context.Context, req Request) (Reply, error) {
 	return g.Model.Call(ctx, req)
 }
 
+// Stream is Call, streaming the answer text to onText.
+func (g *guarded) Stream(ctx context.Context, req Request, onText func(string)) (Reply, error) {
+	if err := g.admit(ctx); err != nil {
+		return Reply{}, err
+	}
+	return CallStreaming(ctx, g.Model, req, onText)
+}
+
 // admit decides one call and reports its event: an error wrapping
 // ErrProviderNotAllowed when the allowlist refuses it. Instrument calls it
 // before redaction and the audit trail's start row, then calls g.Model
