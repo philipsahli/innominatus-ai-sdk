@@ -97,8 +97,12 @@ func WithTracerName(name string) Option {
 	return func(i *instrumented) { i.tracer = name }
 }
 
-// promptHash is hex SHA-256 of the request as sent: system prompt, schema
-// and turns, as JSON.
+// PromptHash is hex SHA-256 of the request as sent: system prompt, schema,
+// turns and tools, as JSON. It is the AuditedCall's PromptHash and the
+// replay key (with the prompt version), so a caller can check that a
+// request still matches its recording.
+func PromptHash(req Request) string { return promptHash(req) }
+
 func promptHash(req Request) string {
 	b, err := json.Marshal(struct {
 		System string          `json:"system"`
