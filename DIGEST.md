@@ -54,7 +54,7 @@ graph TB
 ## Key Architectural Decisions
 
 ### 1. Interface-Based Design (Dependency Inversion)
-- All modules depend on abstractions (`llm.Client`, not `AnthropicClient`)
+- All modules depend on abstractions (`model.Model`, not a backend)
 - Easy to swap providers without changing downstream code
 - Testable via mocks/stubs
 
@@ -135,7 +135,7 @@ result, _ := sdk.CodeMapping().Analyze(ctx, req)
 | File | Purpose |
 |------|---------|
 | `pkg/platformai/sdk.go` | Main SDK entry point |
-| `pkg/platformai/llm/client.go` | LLM abstraction interface |
+| `pkg/model/model.go` | Model interface |
 | `pkg/platformai/codemapping/module.go` | Code analysis module |
 | `pkg/platformai/rag/module.go` | RAG module |
 | `examples/code-analyzer/main.go` | CLI tool for repo analysis |

@@ -1,14 +1,18 @@
+// Command verify calls the real Anthropic API through pkg/model: a plain
+// answer, an answer that must use the system prompt, a JSON answer to a
+// schema, and a tool round trip through model.Loop. It saves what it saw to
+// docs/verification/.
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai"
-	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/llm"
+	"github.com/philipsahli/innominatus-ai-sdk/pkg/model"
 	"github.com/philipsahli/innominatus-ai-sdk/verification/common"
 )
 
@@ -21,50 +25,45 @@ const (
 )
 
 type stepResult struct {
-	Name      string                  `json:"name"`
-	Passed    bool                    `json:"passed"`
-	Error     string                  `json:"error,omitempty"`
-	Responses []*llm.GenerateResponse `json:"responses,omitempty"`
+	Name    string        `json:"name"`
+	Passed  bool          `json:"passed"`
+	Error   string        `json:"error,omitempty"`
+	Replies []model.Reply `json:"replies,omitempty"`
 }
 
 func main() {
-	common.PrintHeader("🔧 LLM Client Verification")
+	common.PrintHeader("🔧 Model Verification (Anthropic)")
 
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
 		common.Fail("ANTHROPIC_API_KEY not set")
 	}
+	name := os.Getenv("ANTHROPIC_MODEL")
+	if name == "" {
+		name = "claude-sonnet-5-5"
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	sdk, err := platformai.New(ctx, &platformai.Config{
-		LLM: platformai.LLMConfig{
-			Provider: "anthropic",
-			APIKey:   apiKey,
-			Model:    "claude-sonnet-4-5-20250929",
-		},
-	})
-	if err != nil {
-		common.Fail("SDK initialization failed: %v", err)
-	}
-	client := sdk.LLM()
+	m := model.Instrument(model.NewAnthropic(apiKey, model.DefaultAnthropicBaseURL, name), "verification")
 
 	steps := []struct {
 		name string
-		run  func(context.Context, llm.Client) ([]*llm.GenerateResponse, error)
+		run  func(context.Context, model.Model) ([]model.Reply, error)
 	}{
-		{"Generate", verifyGenerate},
-		{"GenerateWithContext", verifyGenerateWithContext},
-		{"GenerateWithTools round trip", verifyToolRoundTrip},
+		{"Plain answer", verifyPlain},
+		{"System prompt context", verifyContext},
+		{"JSON schema answer", verifySchema},
+		{"Tool round trip (Loop)", verifyToolRoundTrip},
 	}
 
 	var results []stepResult
 	failed := false
 	for i, step := range steps {
 		fmt.Printf("\n%d. %s...\n", i+1, step.name)
-		responses, err := step.run(ctx, client)
-		result := stepResult{Name: step.name, Passed: err == nil, Responses: responses}
+		replies, err := step.run(ctx, m)
+		result := stepResult{Name: step.name, Passed: err == nil, Replies: replies}
 		if err != nil {
 			result.Error = err.Error()
 			failed = true
@@ -79,6 +78,7 @@ func main() {
 	path, err := common.SaveJSON("llm", map[string]any{
 		"timestamp":    time.Now(),
 		"verification": "llm",
+		"model":        name,
 		"steps":        results,
 	})
 	if err != nil {
@@ -87,133 +87,107 @@ func main() {
 	fmt.Printf("  Saved: %s\n", path)
 
 	if failed {
-		common.Fail("LLM verification failed")
+		common.Fail("model verification failed")
 	}
-	fmt.Println("\n✅ PASS: LLM verification completed successfully")
+	fmt.Println("\n✅ PASS: model verification completed successfully")
 }
 
-func verifyGenerate(ctx context.Context, client llm.Client) ([]*llm.GenerateResponse, error) {
-	resp, err := client.Generate(ctx, llm.GenerateRequest{
-		UserPrompt: "Reply with only the word OK and nothing else.",
-		MaxTokens:  16,
+func verifyPlain(ctx context.Context, m model.Model) ([]model.Reply, error) {
+	rep, err := m.Call(ctx, model.Request{
+		Turns:     []model.Turn{{Role: "user", Text: "Reply with only the word OK and nothing else."}},
+		MaxTokens: 16,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	responses := []*llm.GenerateResponse{resp}
-
-	if !strings.Contains(strings.ToUpper(resp.Text), "OK") {
-		return responses, fmt.Errorf("expected text containing OK, got %q", resp.Text)
+	replies := []model.Reply{rep}
+	if !strings.Contains(strings.ToUpper(rep.Text), "OK") {
+		return replies, fmt.Errorf("expected text containing OK, got %q", rep.Text)
 	}
-	if resp.Usage.TotalTokens <= 0 {
-		return responses, fmt.Errorf("expected Usage.TotalTokens > 0, got %d", resp.Usage.TotalTokens)
+	if rep.InputTokens <= 0 || rep.OutputTokens <= 0 {
+		return replies, fmt.Errorf("expected token counts > 0, got %d in, %d out", rep.InputTokens, rep.OutputTokens)
 	}
-	if resp.StopReason != "end_turn" {
-		return responses, fmt.Errorf("expected StopReason end_turn, got %q", resp.StopReason)
+	if rep.Stop != model.StopEnd {
+		return replies, fmt.Errorf("expected a normal stop, got %v", rep.Stop)
 	}
-	fmt.Printf("  text=%q tokens=%d stop=%s\n", resp.Text, resp.Usage.TotalTokens, resp.StopReason)
-	return responses, nil
+	fmt.Printf("  text=%q tokens=%d/%d\n", rep.Text, rep.InputTokens, rep.OutputTokens)
+	return replies, nil
 }
 
-func verifyGenerateWithContext(ctx context.Context, client llm.Client) ([]*llm.GenerateResponse, error) {
-	additionalContext := fmt.Sprintf("Internal note: the deployment code for the staging cluster is %s.", contextFact)
-	resp, err := client.GenerateWithContext(ctx, llm.GenerateRequest{
-		UserPrompt: "What is the deployment code for the staging cluster? Reply with only the code.",
-		MaxTokens:  32,
-	}, additionalContext)
+func verifyContext(ctx context.Context, m model.Model) ([]model.Reply, error) {
+	rep, err := m.Call(ctx, model.Request{
+		System:    "The deployment code of the current release is " + contextFact + ".",
+		Turns:     []model.Turn{{Role: "user", Text: "What is the deployment code of the current release? Reply with the code only."}},
+		MaxTokens: 32,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	responses := []*llm.GenerateResponse{resp}
-
-	if !strings.Contains(resp.Text, contextFact) {
-		return responses, fmt.Errorf("expected text containing %s from the context, got %q", contextFact, resp.Text)
+	if !strings.Contains(rep.Text, contextFact) {
+		return []model.Reply{rep}, fmt.Errorf("expected %s in the answer, got %q", contextFact, rep.Text)
 	}
-	fmt.Printf("  text=%q\n", resp.Text)
-	return responses, nil
+	fmt.Printf("  text=%q\n", rep.Text)
+	return []model.Reply{rep}, nil
 }
 
-func verifyToolRoundTrip(ctx context.Context, client llm.Client) ([]*llm.GenerateResponse, error) {
-	tools := []llm.Tool{{
-		Name:        toolName,
-		Description: "Returns the team that owns a service.",
-		InputSchema: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"service_name": map[string]interface{}{
-					"type":        "string",
-					"description": "Name of the service",
-				},
-			},
-			"required": []string{"service_name"},
-		},
-	}}
-	question := llm.Message{
-		Role: "user",
-		Content: []llm.ContentBlock{{
-			Type: "text",
-			Text: fmt.Sprintf("Which team owns the %s service? Use the tool.", serviceName),
+func verifySchema(ctx context.Context, m model.Model) ([]model.Reply, error) {
+	rep, err := m.Call(ctx, model.Request{
+		Turns:     []model.Turn{{Role: "user", Text: "What is 6 times 7?"}},
+		Schema:    json.RawMessage(`{"type":"object","properties":{"answer":{"type":"integer"}},"required":["answer"],"additionalProperties":false}`),
+		MaxTokens: 64,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	var out struct{ Answer int }
+	if err := json.Unmarshal([]byte(rep.Text), &out); err != nil {
+		return []model.Reply{rep}, fmt.Errorf("answer is not the schema's JSON: %w (%q)", err, rep.Text)
+	}
+	if out.Answer != 42 {
+		return []model.Reply{rep}, fmt.Errorf("expected 42, got %d", out.Answer)
+	}
+	fmt.Printf("  text=%s\n", rep.Text)
+	return []model.Reply{rep}, nil
+}
+
+func verifyToolRoundTrip(ctx context.Context, m model.Model) ([]model.Reply, error) {
+	calls := 0
+	loop := model.Loop{
+		Model:     m,
+		MaxTries:  1,
+		MaxRounds: 3,
+		Tools: model.ToolFunc(func(_ context.Context, use model.ToolUse) (string, bool) {
+			calls++
+			var in struct{ Service string }
+			if use.Name != toolName || json.Unmarshal(use.Input, &in) != nil || in.Service != serviceName {
+				return "unknown service", true
+			}
+			return serviceOwner, false
+		}),
+	}
+	res, err := loop.Run(ctx, model.Request{
+		Turns: []model.Turn{{Role: "user", Text: "Who owns the service " + serviceName + "? Use the tool, then reply with the owner only."}},
+		Tools: []model.ToolDef{{
+			Name:        toolName,
+			Description: "Returns the team that owns a service.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"service":{"type":"string"}},"required":["service"]}`),
 		}},
-	}
-
-	first, err := client.GenerateWithTools(ctx, llm.GenerateWithToolsRequest{
-		Messages:  []llm.Message{question},
-		Tools:     tools,
-		MaxTokens: 512,
+		MaxTokens: 256,
 	})
+	replies := make([]model.Reply, 0, len(res.Tries))
+	for _, t := range res.Tries {
+		replies = append(replies, t.Reply)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("first request failed: %w", err)
+		return replies, fmt.Errorf("loop failed: %w", err)
 	}
-	responses := []*llm.GenerateResponse{first}
-
-	if first.StopReason != "tool_use" {
-		return responses, fmt.Errorf("expected StopReason tool_use, got %q", first.StopReason)
+	last, _ := res.Last()
+	if calls == 0 {
+		return replies, fmt.Errorf("the model did not call %s", toolName)
 	}
-	if len(first.ToolUses) != 1 {
-		return responses, fmt.Errorf("expected 1 tool use, got %d", len(first.ToolUses))
+	if !strings.Contains(last.Reply.Text, serviceOwner) {
+		return replies, fmt.Errorf("expected %s in the final answer, got %q", serviceOwner, last.Reply.Text)
 	}
-	toolUse := first.ToolUses[0]
-	if toolUse.Name != toolName {
-		return responses, fmt.Errorf("expected tool %s, got %s", toolName, toolUse.Name)
-	}
-	if got, _ := toolUse.Input["service_name"].(string); got != serviceName {
-		return responses, fmt.Errorf("expected tool input service_name=%s, got input %v", serviceName, toolUse.Input)
-	}
-	fmt.Printf("  tool_use: %s(%v)\n", toolUse.Name, toolUse.Input)
-
-	// Replay the whole assistant turn: any text it produced plus the tool_use block.
-	var assistantContent []llm.ContentBlock
-	if first.Text != "" {
-		assistantContent = append(assistantContent, llm.ContentBlock{Type: "text", Text: first.Text})
-	}
-	assistantContent = append(assistantContent, llm.ContentBlock{
-		Type:  "tool_use",
-		ID:    toolUse.ID,
-		Name:  toolUse.Name,
-		Input: toolUse.Input,
-	})
-
-	second, err := client.GenerateWithTools(ctx, llm.GenerateWithToolsRequest{
-		Messages: []llm.Message{
-			question,
-			{Role: "assistant", Content: assistantContent},
-			{Role: "user", Content: []llm.ContentBlock{{
-				Type:      "tool_result",
-				ToolUseID: toolUse.ID,
-				Content:   serviceOwner,
-			}}},
-		},
-		Tools:     tools,
-		MaxTokens: 512,
-	})
-	if err != nil {
-		return responses, fmt.Errorf("second request failed: %w", err)
-	}
-	responses = append(responses, second)
-
-	if !strings.Contains(second.Text, serviceOwner) {
-		return responses, fmt.Errorf("expected final text containing %s, got %q", serviceOwner, second.Text)
-	}
-	fmt.Printf("  final text=%q\n", second.Text)
-	return responses, nil
+	fmt.Printf("  tool calls=%d rounds=%d final=%q\n", calls, len(res.Tries), last.Reply.Text)
+	return replies, nil
 }

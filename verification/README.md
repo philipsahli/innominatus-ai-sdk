@@ -54,7 +54,7 @@ config := &platformai.Config{
     LLM: platformai.LLMConfig{
         Provider: "anthropic",
         APIKey:   os.Getenv("ANTHROPIC_API_KEY"),
-        Model:    "claude-sonnet-4-5-20250929",
+        Model:    "claude-sonnet-5-5",
     },
     // Add RAG config if needed
     RAG: &rag.Config{...},

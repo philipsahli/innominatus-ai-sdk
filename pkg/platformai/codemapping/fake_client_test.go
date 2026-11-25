@@ -2,42 +2,32 @@ package codemapping_test
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/llm"
+	"github.com/philipsahli/innominatus-ai-sdk/pkg/model"
 )
 
-// fakeClient stands in for the Anthropic client so tests need no API key or network.
+// fakeClient stands in for a model backend so tests need no API key or network.
 type fakeClient struct {
-	response *llm.GenerateResponse
-	err      error
+	reply model.Reply
+	err   error
 
-	requests         []llm.GenerateRequest
-	otherMethodCalls int
+	requests []model.Request
 }
 
-var _ llm.Client = (*fakeClient)(nil)
+var _ model.Model = (*fakeClient)(nil)
 
-func (f *fakeClient) Generate(_ context.Context, req llm.GenerateRequest) (*llm.GenerateResponse, error) {
+func (f *fakeClient) Call(_ context.Context, req model.Request) (model.Reply, error) {
 	f.requests = append(f.requests, req)
-	return f.response, f.err
+	return f.reply, f.err
 }
 
-func (f *fakeClient) GenerateWithContext(_ context.Context, _ llm.GenerateRequest, _ string) (*llm.GenerateResponse, error) {
-	f.otherMethodCalls++
-	return nil, errors.New("GenerateWithContext not expected")
-}
-
-func (f *fakeClient) GenerateWithTools(_ context.Context, _ llm.GenerateWithToolsRequest) (*llm.GenerateResponse, error) {
-	f.otherMethodCalls++
-	return nil, errors.New("GenerateWithTools not expected")
-}
+func (f *fakeClient) Name() (string, string) { return "fake", "fake-model" }
 
 func newFakeClient(text string) *fakeClient {
-	return &fakeClient{response: &llm.GenerateResponse{Text: text}}
+	return &fakeClient{reply: model.Reply{Text: text, Stop: model.StopEnd}}
 }
 
 const validConfigJSON = `{

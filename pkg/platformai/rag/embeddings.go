@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/philipsahli/innominatus-ai-sdk/pkg/model"
 )
 
 const (
@@ -234,7 +236,13 @@ func NewEmbeddingProvider(config Config) (EmbeddingProvider, error) {
 			c.baseURL = config.BaseURL
 		}
 		return c, nil
+	case "ollama":
+		base := config.BaseURL
+		if base == "" {
+			base = model.DefaultOllamaBaseURL
+		}
+		return FromEmbedder(model.NewOllamaEmbedder(base, config.Model)), nil
 	default:
-		return nil, fmt.Errorf("unsupported embedding provider: %s (supported: voyageai, openai)", config.EmbeddingProvider)
+		return nil, fmt.Errorf("unsupported embedding provider: %s (supported: voyageai, openai, ollama)", config.EmbeddingProvider)
 	}
 }

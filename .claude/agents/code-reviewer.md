@@ -127,7 +127,7 @@ func NewModule(client *AnthropicClient) *Module {
 }
 
 // ✅ Good
-func NewModule(client llm.Client) *Module {
+func NewModule(client model.Model) *Module {
     return &Module{client: client}
 }
 ```
@@ -260,7 +260,7 @@ func TestDetectLanguage(t *testing.T) {
 ### Architecture Feedback
 ```
 Consider using dependency injection here. Instead of creating `AnthropicClient`
-directly, accept `llm.Client` interface. This follows the Dependency Inversion
+directly, accept the `model.Model` interface. This follows the Dependency Inversion
 principle and makes testing easier.
 ```
 

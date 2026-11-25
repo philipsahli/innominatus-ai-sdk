@@ -83,8 +83,8 @@ func TestNew(t *testing.T) {
 			if err != nil {
 				t.Fatalf("New() unexpected error: %v", err)
 			}
-			if sdk.LLM() == nil {
-				t.Error("LLM() = nil, want client")
+			if sdk.Model() == nil {
+				t.Error("Model() = nil, want a model")
 			}
 			if sdk.CodeMapping() == nil {
 				t.Error("CodeMapping() = nil, want module")

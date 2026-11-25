@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/philipsahli/innominatus-ai-sdk/pkg/model"
 	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai"
-	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/llm"
 	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/rag"
 )
 
@@ -30,7 +30,7 @@ func main() {
 		LLM: platformai.LLMConfig{
 			Provider: "anthropic",
 			APIKey:   anthropicKey,
-			Model:    "claude-sonnet-4-5-20250929",
+			Model:    "claude-sonnet-5-5",
 		},
 		RAG: &rag.Config{
 			EmbeddingProvider: "openai",
@@ -201,12 +201,11 @@ When configuring Kubernetes resources for production workloads:
 		fmt.Println()
 
 		// Generate answer using LLM with RAG context
-		response, err := sdk.LLM().GenerateWithContext(ctx, llm.GenerateRequest{
-			SystemPrompt: "You are a helpful platform engineering assistant. Use the provided context to answer questions accurately. If the context doesn't contain relevant information, say so.",
-			UserPrompt:   question,
-			Temperature:  0.7,
-			MaxTokens:    500,
-		}, ragResponse.Context)
+		response, err := sdk.Model().Call(ctx, model.Request{
+			System:    "You are a helpful platform engineering assistant. Use the provided context to answer questions accurately. If the context doesn't contain relevant information, say so.\n\nContext:\n" + ragResponse.Context,
+			Turns:     []model.Turn{{Role: "user", Text: question}},
+			MaxTokens: 500,
+		})
 		if err != nil {
 			log.Printf("Failed to generate response: %v", err)
 			continue
@@ -216,9 +215,9 @@ When configuring Kubernetes resources for production workloads:
 		fmt.Printf("🤖 AI Response:\n%s\n", response.Text)
 		fmt.Println()
 		fmt.Printf("📊 Tokens used: %d (prompt: %d, completion: %d)\n",
-			response.Usage.TotalTokens,
-			response.Usage.PromptTokens,
-			response.Usage.CompletionTokens)
+			response.InputTokens+response.OutputTokens,
+			response.InputTokens,
+			response.OutputTokens)
 		fmt.Println()
 		fmt.Println("-----------------------------------------------------------------")
 		fmt.Println()

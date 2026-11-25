@@ -32,7 +32,7 @@ func main() {
 		LLM: platformai.LLMConfig{
 			Provider: "anthropic",
 			APIKey:   anthropicKey,
-			Model:    "claude-sonnet-4-5-20250929",
+			Model:    "claude-sonnet-5-5",
 		},
 		RAG: &rag.Config{
 			EmbeddingProvider: "openai",

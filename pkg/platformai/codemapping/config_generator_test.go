@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/philipsahli/innominatus-ai-sdk/pkg/model"
 	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/codemapping"
-	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/llm"
 )
 
 func TestConfigGeneratorGenerate(t *testing.T) {
@@ -47,15 +47,12 @@ func TestConfigGeneratorGenerate(t *testing.T) {
 	if len(client.requests) != 1 {
 		t.Fatalf("Generate called %d times, want 1", len(client.requests))
 	}
-	if client.otherMethodCalls != 0 {
-		t.Errorf("unexpected calls to other llm.Client methods: %d", client.otherMethodCalls)
-	}
 	req := client.requests[0]
-	if req.Temperature != 0.3 || req.MaxTokens != 4096 {
-		t.Errorf("Temperature/MaxTokens = %v/%d, want 0.3/4096", req.Temperature, req.MaxTokens)
+	if req.MaxTokens != 4096 {
+		t.Errorf("MaxTokens = %d, want 4096", req.MaxTokens)
 	}
-	if req.SystemPrompt == "" {
-		t.Error("SystemPrompt is empty")
+	if req.System == "" {
+		t.Error("System is empty")
 	}
 	for _, want := range []string{
 		"Primary Language: go",
@@ -67,7 +64,7 @@ func TestConfigGeneratorGenerate(t *testing.T) {
 		"  - github.com/gin-gonic/gin: v1.9.1",
 		"main.go\ngo.mod",
 	} {
-		if !strings.Contains(req.UserPrompt, want) {
+		if !strings.Contains(req.Turns[0].Text, want) {
 			t.Errorf("UserPrompt does not contain %q", want)
 		}
 	}
@@ -94,7 +91,7 @@ func TestConfigGeneratorPromptFileCount(t *testing.T) {
 			if _, err := codemapping.NewConfigGenerator(client).Generate(context.Background(), analysis); err != nil {
 				t.Fatalf("Generate: %v", err)
 			}
-			if prompt := client.requests[0].UserPrompt; !strings.Contains(prompt, tt.want) {
+			if prompt := client.requests[0].Turns[0].Text; !strings.Contains(prompt, tt.want) {
 				t.Errorf("UserPrompt does not contain %q", tt.want)
 			}
 		})
@@ -114,7 +111,7 @@ func TestConfigGeneratorPromptLimits(t *testing.T) {
 	if _, err := codemapping.NewConfigGenerator(client).Generate(context.Background(), analysis); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	prompt := client.requests[0].UserPrompt
+	prompt := client.requests[0].Turns[0].Text
 
 	for _, want := range []string{"Total Files: 20", "Total Dependencies: 12", "file00.go", "file14.go"} {
 		if !strings.Contains(prompt, want) {
@@ -143,7 +140,7 @@ func TestConfigGeneratorErrors(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		client   llm.Client
+		client   model.Model
 		analysis *codemapping.RepositoryAnalysis
 		wantIs   error
 		wantMsg  string
@@ -161,7 +158,7 @@ func TestConfigGeneratorErrors(t *testing.T) {
 			wantMsg:  "analysis is nil",
 		},
 		{
-			name:     "nil response without error",
+			name:     "empty answer without error",
 			client:   &fakeClient{},
 			analysis: analysis,
 			wantMsg:  "no response",

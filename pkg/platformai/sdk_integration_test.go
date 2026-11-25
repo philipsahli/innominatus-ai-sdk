@@ -12,7 +12,6 @@ import (
 
 	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai"
 	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/codemapping"
-	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/llm"
 	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/rag"
 )
 
@@ -181,10 +180,11 @@ func TestSDK_CodeMappingAnalyze(t *testing.T) {
 			if len(req.Body.Messages) != 1 {
 				t.Fatalf("messages = %d, want 1", len(req.Body.Messages))
 			}
-			var prompt string
-			if err := json.Unmarshal(req.Body.Messages[0].Content, &prompt); err != nil {
-				t.Fatalf("user content is not a string: %v", err)
+			var blocks []struct{ Type, Text string }
+			if err := json.Unmarshal(req.Body.Messages[0].Content, &blocks); err != nil || len(blocks) != 1 || blocks[0].Type != "text" {
+				t.Fatalf("user content is not one text block: %v %s", err, req.Body.Messages[0].Content)
 			}
+			prompt := blocks[0].Text
 			if !strings.Contains(prompt, "Primary Language: "+tt.wantLanguage) {
 				t.Errorf("prompt does not name language %q", tt.wantLanguage)
 			}
@@ -227,46 +227,6 @@ func TestSDK_CodeMappingAnalyze_Errors(t *testing.T) {
 				t.Errorf("Analyze result = %+v, want nil on error", res)
 			}
 		})
-	}
-}
-
-func TestSDK_LLMGenerateWithTools(t *testing.T) {
-	body := messageJSON(t, "tool_use",
-		map[string]interface{}{"type": "text", "text": "Looking up the weather."},
-		map[string]interface{}{"type": "tool_use", "id": "toolu_1", "name": "get_weather", "input": map[string]interface{}{"city": "Bern"}},
-	)
-	server, fake := newFakeAnthropic(t, func(w http.ResponseWriter) {
-		w.Header().Set("content-type", "application/json")
-		_, _ = w.Write(body)
-	})
-	sdk := newSDK(t, server.URL, nil)
-
-	resp, err := sdk.LLM().GenerateWithTools(context.Background(), llm.GenerateWithToolsRequest{
-		Messages: []llm.Message{{Role: "user", Content: []llm.ContentBlock{{Type: "text", Text: "Weather in Bern?"}}}},
-		Tools: []llm.Tool{{
-			Name:        "get_weather",
-			Description: "Current weather for a city",
-			InputSchema: map[string]interface{}{"type": "object", "properties": map[string]interface{}{"city": map[string]interface{}{"type": "string"}}},
-		}},
-	})
-	if err != nil {
-		t.Fatalf("GenerateWithTools: %v", err)
-	}
-	if resp.StopReason != "tool_use" {
-		t.Errorf("StopReason = %q, want tool_use", resp.StopReason)
-	}
-	if len(resp.ToolUses) != 1 {
-		t.Fatalf("ToolUses = %d, want 1", len(resp.ToolUses))
-	}
-	tu := resp.ToolUses[0]
-	if tu.ID != "toolu_1" || tu.Name != "get_weather" {
-		t.Errorf("ToolUse = %+v, want id toolu_1, name get_weather", tu)
-	}
-	if got := tu.Input["city"]; got != "Bern" {
-		t.Errorf("ToolUse.Input[city] = %v, want Bern", got)
-	}
-	if got := fake.last(t).Body.Model; got != testModel {
-		t.Errorf("model = %q, want %q", got, testModel)
 	}
 }
 

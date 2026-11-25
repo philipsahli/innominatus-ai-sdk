@@ -60,7 +60,7 @@ The analyzer will:
 				LLM: platformai.LLMConfig{
 					Provider: "anthropic",
 					APIKey:   apiKey,
-					Model:    "claude-sonnet-4-5-20250929",
+					Model:    "claude-sonnet-5-5",
 				},
 			})
 			if err != nil {

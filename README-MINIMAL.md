@@ -15,7 +15,7 @@ sdk, _ := platformai.New(ctx, &platformai.Config{
     LLM: platformai.LLMConfig{
         Provider: "anthropic",
         APIKey:   "your-key",
-        Model:    "claude-sonnet-4-5-20250929",
+        Model:    "claude-sonnet-5-5",
     },
 })
 

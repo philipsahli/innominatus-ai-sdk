@@ -9,7 +9,7 @@ A Go SDK for AI-powered platform engineering automation. Analyzes code repositor
 ## Tech Stack
 
 - **Language:** Go 1.24.1
-- **LLM Provider:** Anthropic Claude (Sonnet 4.5)
+- **LLM Providers:** Anthropic, Bedrock, OpenAI-compatible, Ollama, GitHub Copilot (`pkg/model`)
 - **Embedding Providers:** OpenAI, Voyage AI
 - **CLI Framework:** Cobra
 - **Config Format:** YAML (gopkg.in/yaml.v3)
@@ -45,29 +45,28 @@ export ANTHROPIC_API_KEY="your-key"
 ### SOLID Principles
 
 **Single Responsibility Principle**
-- Each module has one clear purpose: `codemapping`, `rag`, `llm`
+- Each module has one clear purpose: `model`, `redact`, `codemapping`, `rag`
 - Each package handles one domain concept
 - Example: `Analyzer` only analyzes repos, `Detector` only detects languages
 
 **Open/Closed Principle**
 - Extend via interfaces, don't modify existing code
-- Add new LLM providers by implementing `llm.Client` interface
+- Add new LLM providers by implementing `model.Model`
 - Add new embedding providers via `rag.EmbeddingService` interface
 
 **Liskov Substitution Principle**
-- Any `llm.Client` implementation is interchangeable
-- `AnthropicClient` can replace any `llm.Client` without breaking behavior
+- Any `model.Model` backend is interchangeable
 - Interfaces define contracts, not implementations
 
 **Interface Segregation Principle**
 - Small, focused interfaces over large ones
-- `llm.Client` interface is minimal, specific
+- `model.Model` is two methods: `Call` and `Name`
 - Don't force clients to depend on methods they don't use
 
 **Dependency Inversion Principle**
-- Depend on abstractions (`llm.Client`), not concretions (`AnthropicClient`)
+- Depend on abstractions (`model.Model`), not a backend
 - Pass interfaces to constructors
-- Example: `codemapping.NewModule(llmClient llm.Client)`
+- Example: `codemapping.NewModule(m model.Model)`
 
 ### KISS (Keep It Simple, Stupid)
 
@@ -138,30 +137,20 @@ func Analyze(ctx context.Context, repoPath string) error {
 pkg/redact/             # Credential redaction for prompts and logs (no SDK deps)
 └── redacttest/         # Fake-secret corpus for tests
 
+pkg/model/              # Provider-neutral model calls
+├── model.go            # Model interface, Request/Reply, CallError classes
+├── model_*.go          # Backends: anthropic, bedrock, openai, ollama, copilot, replay/record
+├── loop.go             # Tries, tool rounds, budget reserve/settle
+├── providers.go        # Guard: provider allowlist with contract terms
+└── instrument.go       # Instrument: redaction, span, metrics, audit hook
+
+pkg/llmtest/            # Golden-request test kit (scripted backend)
+
 pkg/platformai/
-├── sdk.go              # Main SDK entry point
+├── sdk.go              # Facade: model (optional) + RAG (optional)
 ├── config.go           # Configuration
-├── types.go            # Shared types
-├── errors.go           # Error definitions
-│
-├── llm/                # LLM module (abstraction for AI providers)
-│   ├── client.go       # Interface definition
-│   ├── anthropic.go    # Claude implementation
-│   └── types.go        # Request/response types
-│
-├── codemapping/        # Code analysis and platform config generation
-│   ├── module.go       # Module entry point
-│   ├── analyzer.go     # Repository analyzer
-│   ├── detector.go     # Language/framework detection
-│   ├── config_generator.go  # AI-powered config generation
-│   └── types.go        # Domain types
-│
-└── rag/                # RAG (Retrieval-Augmented Generation)
-    ├── module.go       # Module entry point
-    ├── embeddings.go   # Embedding service abstraction
-    ├── store.go        # Vector store (in-memory)
-    ├── retriever.go    # Semantic search
-    └── types.go        # Domain types
+├── codemapping/        # Code analysis and platform config generation (uses model.Model)
+└── rag/                # Embeddings, in-memory vector store, retriever
 ```
 
 **Bounded Contexts:**
@@ -213,7 +202,7 @@ Use factory functions for module creation:
 
 ```go
 // Good: Factory function
-func NewModule(llmClient llm.Client) *Module {
+func NewModule(llmClient model.Model) *Module {
     return &Module{
         llm:       llmClient,
         analyzer:  NewAnalyzer(),
@@ -222,7 +211,7 @@ func NewModule(llmClient llm.Client) *Module {
 }
 
 // Use constructor injection for dependencies
-func NewConfigGenerator(llmClient llm.Client) *ConfigGenerator {
+func NewConfigGenerator(llmClient model.Model) *ConfigGenerator {
     return &ConfigGenerator{llm: llmClient}
 }
 ```
@@ -234,7 +223,7 @@ Pass dependencies via constructors, not global state:
 ```go
 // Good: Dependencies injected
 type Module struct {
-    llm llm.Client  // Interface, not concrete type
+    llm model.Model  // Interface, not concrete type
 }
 
 // Bad: Global state
@@ -327,10 +316,10 @@ func main() {
 
 ```go
 // Good: Accept interface, return struct
-func NewModule(llmClient llm.Client) *Module
+func NewModule(llmClient model.Model) *Module
 
 // Bad: Accept struct
-func NewModule(llmClient *AnthropicClient) *Module
+func NewModule(llmClient *anthropicModel) *Module
 ```
 
 ### Go Idioms
@@ -405,7 +394,7 @@ defer cancel()
 
 **Interface Implementation Check:**
 ```go
-var _ llm.Client = (*AnthropicClient)(nil)
+var _ model.Model = (*fakeModel)(nil)
 ```
 
 **Table-Driven Tests:**
