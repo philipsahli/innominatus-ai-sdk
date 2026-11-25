@@ -7,16 +7,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/llm"
+	"github.com/philipsahli/innominatus-ai-sdk/pkg/model"
 )
 
 // ConfigGenerator generates platform configuration using LLM
 type ConfigGenerator struct {
-	llm llm.Client
+	llm model.Model
 }
 
 // NewConfigGenerator creates a new config generator
-func NewConfigGenerator(llmClient llm.Client) *ConfigGenerator {
+func NewConfigGenerator(llmClient model.Model) *ConfigGenerator {
 	return &ConfigGenerator{llm: llmClient}
 }
 
@@ -138,24 +138,36 @@ Respond with ONLY valid JSON, no markdown or explanation.`,
 		strings.Join(fileList, "\n"),
 	)
 
-	response, err := g.llm.Generate(ctx, llm.GenerateRequest{
-		SystemPrompt: systemPrompt,
-		UserPrompt:   userPrompt,
-		Temperature:  0.3,
-		MaxTokens:    4096,
+	reply, err := g.llm.Call(ctx, model.Request{
+		System:    systemPrompt,
+		Turns:     []model.Turn{{Role: "user", Text: userPrompt}},
+		MaxTokens: 4096,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM generation failed: %w", err)
 	}
-	if response == nil {
+	if strings.TrimSpace(reply.Text) == "" {
 		return nil, errors.New("LLM client returned no response")
 	}
 
-	// Parse JSON response
+	// Models often wrap JSON in a markdown fence despite the instruction.
+	text := stripJSONFence(reply.Text)
 	var config PlatformConfig
-	if err := json.Unmarshal([]byte(response.Text), &config); err != nil {
-		return nil, fmt.Errorf("failed to parse LLM response as JSON: %w (response: %s)", err, response.Text)
+	if err := json.Unmarshal([]byte(text), &config); err != nil {
+		return nil, fmt.Errorf("failed to parse LLM response as JSON: %w (response: %s)", err, model.Cut(reply.Text, 500))
 	}
 
 	return &config, nil
+}
+
+// stripJSONFence removes a ```json ... ``` (or plain ```) fence around text.
+func stripJSONFence(text string) string {
+	t := strings.TrimSpace(text)
+	if !strings.HasPrefix(t, "```") {
+		return t
+	}
+	t = strings.TrimPrefix(t, "```")
+	t = strings.TrimPrefix(t, "json")
+	t = strings.TrimSuffix(strings.TrimSpace(t), "```")
+	return strings.TrimSpace(t)
 }

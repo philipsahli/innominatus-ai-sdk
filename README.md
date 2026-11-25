@@ -28,7 +28,7 @@ func main() {
 		LLM: platformai.LLMConfig{
 			Provider: "anthropic",
 			APIKey:   "your-api-key",
-			Model:    "claude-sonnet-4-5-20250929",
+			Model:    "claude-sonnet-5-5",
 		},
 	})
 

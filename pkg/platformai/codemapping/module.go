@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/llm"
+	"github.com/philipsahli/innominatus-ai-sdk/pkg/model"
 )
 
 // Module handles code-to-platform mapping
 type Module struct {
-	llm       llm.Client
+	llm       model.Model
 	analyzer  *Analyzer
 	detector  *Detector
 	generator *ConfigGenerator
 }
 
 // NewModule creates a new code mapping module
-func NewModule(llmClient llm.Client) *Module {
+func NewModule(llmClient model.Model) *Module {
 	return &Module{
 		llm:       llmClient,
 		analyzer:  NewAnalyzer(),

@@ -5,73 +5,48 @@ import (
 	"testing"
 
 	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai"
+	"github.com/philipsahli/innominatus-ai-sdk/pkg/platformai/rag"
 )
 
 func TestConfigValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		in      platformai.LLMConfig
+		cfg     platformai.Config
 		want    platformai.LLMConfig
-		wantErr error
+		wantErr bool
 	}{
+		{name: "nothing configured", wantErr: true},
+		{name: "RAG only needs no model", cfg: platformai.Config{RAG: &rag.Config{}}},
+		{name: "anthropic without key", cfg: platformai.Config{LLM: platformai.LLMConfig{Provider: "anthropic"}}, wantErr: true},
+		{name: "unknown provider", cfg: platformai.Config{LLM: platformai.LLMConfig{Provider: "mistral", APIKey: "k"}}, wantErr: true},
+		{name: "openai without model", cfg: platformai.Config{LLM: platformai.LLMConfig{Provider: "openai", APIKey: "k"}}, wantErr: true},
+		{name: "negative max tokens", cfg: platformai.Config{LLM: platformai.LLMConfig{Provider: "ollama", Model: "m", MaxTokens: -1}}, wantErr: true},
 		{
-			name:    "missing provider",
-			in:      platformai.LLMConfig{APIKey: "test-key"},
-			wantErr: platformai.ErrInvalidConfig,
+			name: "anthropic defaults",
+			cfg:  platformai.Config{LLM: platformai.LLMConfig{Provider: "anthropic", APIKey: "k"}},
+			want: platformai.LLMConfig{Provider: "anthropic", APIKey: "k", Model: platformai.DefaultAnthropicModel, MaxTokens: 4096, BaseURL: "https://api.anthropic.com"},
 		},
 		{
-			name:    "missing API key",
-			in:      platformai.LLMConfig{Provider: "anthropic"},
-			wantErr: platformai.ErrInvalidConfig,
-		},
-		{
-			// A zero temperature is replaced by 0.3, so callers cannot ask for 0.
-			// This pins today's behaviour; #26 tracks changing it.
-			name: "defaults applied to zero fields",
-			in:   platformai.LLMConfig{Provider: "anthropic", APIKey: "test-key"},
-			want: platformai.LLMConfig{
-				Provider:    "anthropic",
-				APIKey:      "test-key",
-				Model:       "claude-sonnet-4-5-20250929",
-				Temperature: 0.3,
-				MaxTokens:   4096,
-			},
-		},
-		{
-			name: "explicit values preserved",
-			in: platformai.LLMConfig{
-				Provider:    "anthropic",
-				APIKey:      "test-key",
-				Model:       "custom-model",
-				Temperature: 0.9,
-				MaxTokens:   1024,
-			},
-			want: platformai.LLMConfig{
-				Provider:    "anthropic",
-				APIKey:      "test-key",
-				Model:       "custom-model",
-				Temperature: 0.9,
-				MaxTokens:   1024,
-			},
+			name: "ollama needs no key",
+			cfg:  platformai.Config{LLM: platformai.LLMConfig{Provider: "ollama", Model: "llama3.1:8b"}},
+			want: platformai.LLMConfig{Provider: "ollama", Model: "llama3.1:8b", MaxTokens: 4096, BaseURL: "http://localhost:11434"},
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &platformai.Config{LLM: tt.in}
+			cfg := tt.cfg
 			err := cfg.Validate()
-
-			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("Validate() error = %v, want errors.Is %v", err, tt.wantErr)
+			if tt.wantErr {
+				if !errors.Is(err, platformai.ErrInvalidConfig) {
+					t.Fatalf("Validate() = %v, want ErrInvalidConfig", err)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("Validate() unexpected error: %v", err)
+				t.Fatalf("Validate() = %v", err)
 			}
 			if cfg.LLM != tt.want {
-				t.Errorf("Validate() LLM = %+v, want %+v", cfg.LLM, tt.want)
+				t.Errorf("LLM = %+v, want %+v", cfg.LLM, tt.want)
 			}
 		})
 	}

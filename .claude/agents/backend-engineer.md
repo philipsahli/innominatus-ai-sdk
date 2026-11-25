@@ -132,7 +132,7 @@ func TestAnalyze(t *testing.T) {
 6. Expose via SDK facade in `sdk.go`
 
 ### Adding a New LLM Provider
-1. Implement `llm.Client` interface in `llm/[provider].go`
+1. Implement `model.Model` in `pkg/model/model_[provider].go`
 2. Add provider-specific config to `llm.Config`
 3. Update factory in `llm.NewClient()`
 4. Add tests and examples

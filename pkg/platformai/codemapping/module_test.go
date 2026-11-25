@@ -46,7 +46,7 @@ func TestModuleAnalyzeFixtures(t *testing.T) {
 			if len(client.requests) != 1 {
 				t.Fatalf("Generate called %d times, want 1", len(client.requests))
 			}
-			prompt := client.requests[0].UserPrompt
+			prompt := client.requests[0].Turns[0].Text
 			if !strings.Contains(prompt, "Primary Language: "+tt.wantLanguage) ||
 				!strings.Contains(prompt, "Framework: "+tt.wantFramework) {
 				t.Error("detected language/framework not passed to the LLM prompt")
