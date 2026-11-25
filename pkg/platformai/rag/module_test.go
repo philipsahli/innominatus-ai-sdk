@@ -170,3 +170,33 @@ func TestModuleAddDocumentsAllPreEmbeddedSkipsProvider(t *testing.T) {
 		t.Errorf("Count() = %d, want 1", n)
 	}
 }
+
+// Documents go through the index embedder, queries through the query one.
+func TestNewModuleWithEmbedders_SplitsIndexAndQuery(t *testing.T) {
+	index, query := &countingEmbedder{}, &countingEmbedder{}
+	m := NewModuleWithEmbedders(index, query)
+	if err := m.AddDocuments(context.Background(), []Document{{ID: "a", Content: "alpha"}, {ID: "b", Content: "beta"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Retrieve(context.Background(), RetrieveRequest{Query: "alpha", TopK: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if index.texts != 2 || query.texts != 1 {
+		t.Errorf("index embedded %d texts, query %d; want 2 and 1", index.texts, query.texts)
+	}
+}
+
+type countingEmbedder struct{ texts int }
+
+func (c *countingEmbedder) GenerateEmbedding(ctx context.Context, text string) ([]float32, error) {
+	c.texts++
+	return []float32{float32(len(text)), 1}, nil
+}
+
+func (c *countingEmbedder) GenerateEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
+	out := make([][]float32, len(texts))
+	for i, t := range texts {
+		out[i], _ = c.GenerateEmbedding(ctx, t)
+	}
+	return out, nil
+}

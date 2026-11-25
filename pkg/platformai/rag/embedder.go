@@ -29,9 +29,14 @@ func (p embedderProvider) GenerateEmbeddings(ctx context.Context, texts []string
 	return out.Vectors, nil
 }
 
-// NewModuleWithEmbedder is NewModule with a given embedder and an in-memory
-// store.
-func NewModuleWithEmbedder(embedder EmbeddingProvider) *Module {
+// NewModuleWithEmbedders builds a Module on an in-memory store with one
+// embedder for documents and one for queries, so the two can be governed
+// apart (for example, only queries count against a user's budget). A nil
+// query embedder means documents and queries share index.
+func NewModuleWithEmbedders(index, query EmbeddingProvider) *Module {
 	store := NewInMemoryVectorStore()
-	return &Module{embedder: embedder, store: store, retriever: NewRetriever(embedder, store)}
+	if query == nil {
+		query = index
+	}
+	return &Module{embedder: query, store: store, retriever: NewRetriever(query, store), indexer: NewRetriever(index, store)}
 }

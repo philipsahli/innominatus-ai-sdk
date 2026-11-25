@@ -11,6 +11,16 @@ type Module struct {
 	embedder  EmbeddingProvider
 	store     VectorStore
 	retriever *Retriever
+	// indexer embeds documents; nil means retriever does (one embedder).
+	indexer *Retriever
+}
+
+// adder is the retriever that embeds documents.
+func (m *Module) adder() *Retriever {
+	if m.indexer != nil {
+		return m.indexer
+	}
+	return m.retriever
 }
 
 // NewModule creates a new RAG module
@@ -37,13 +47,13 @@ func NewModule(config Config) (*Module, error) {
 
 // AddDocument adds a single document to the knowledge base
 func (m *Module) AddDocument(ctx context.Context, id, content string, metadata map[string]string) error {
-	return m.retriever.AddDocument(ctx, id, content, metadata)
+	return m.adder().AddDocument(ctx, id, content, metadata)
 }
 
 // AddDocuments adds multiple documents to the knowledge base. Documents with
 // a non-empty Embedding keep it; the rest are embedded in one batch call.
 func (m *Module) AddDocuments(ctx context.Context, docs []Document) error {
-	return m.retriever.addDocuments(ctx, docs)
+	return m.adder().addDocuments(ctx, docs)
 }
 
 // Retrieve retrieves relevant documents for a query
