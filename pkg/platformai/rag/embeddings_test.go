@@ -270,3 +270,22 @@ func TestNewEmbeddingProvider(t *testing.T) {
 		})
 	}
 }
+
+// An ollama Config embeds through model.NewOllamaEmbedder, batch first.
+func TestNewEmbeddingProvider_Ollama(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/embed" {
+			t.Errorf("path = %s, want /api/embed", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"embeddings":[[1,0],[0,1]],"prompt_eval_count":4}`))
+	}))
+	defer srv.Close()
+	p, err := NewEmbeddingProvider(Config{EmbeddingProvider: "ollama", Model: "nomic-embed-text", BaseURL: srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	vecs, err := p.GenerateEmbeddings(context.Background(), []string{"a", "b"})
+	if err != nil || len(vecs) != 2 || vecs[1][1] != 1 {
+		t.Fatalf("vecs=%v err=%v", vecs, err)
+	}
+}
