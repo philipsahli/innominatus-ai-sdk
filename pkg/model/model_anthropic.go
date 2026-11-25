@@ -18,6 +18,8 @@ const ProviderAnthropic = "anthropic"
 
 type anthropicModel struct {
 	client anthropic.Client
+	// stream is client with StreamTimeout instead of CallTimeout.
+	stream anthropic.Client
 	model  string
 }
 
@@ -25,23 +27,72 @@ type anthropicModel struct {
 // call to baseURL + /v1/messages, the SDK's own retries off, redirects
 // refused, and no credential read from the environment besides apiKey.
 func NewAnthropic(apiKey, baseURL, model string) Model {
+	streamHTTP := newHTTPClient()
+	streamHTTP.Timeout = StreamTimeout
 	return &anthropicModel{
-		client: anthropic.NewClient(
-			// Only what is passed here: no ANTHROPIC_* variable or
-			// credential profile is read behind the operator's back.
-			option.WithoutEnvironmentDefaults(),
-			option.WithAPIKey(apiKey),
-			option.WithBaseURL(baseURL),
-			option.WithMaxRetries(0),
-			option.WithHTTPClient(newHTTPClient()),
-		),
-		model: model,
+		client: newAnthropicClient(apiKey, baseURL, newHTTPClient()),
+		stream: newAnthropicClient(apiKey, baseURL, streamHTTP),
+		model:  model,
 	}
+}
+
+func newAnthropicClient(apiKey, baseURL string, hc *http.Client) anthropic.Client {
+	return anthropic.NewClient(
+		// Only what is passed here: no ANTHROPIC_* variable or
+		// credential profile is read behind the operator's back.
+		option.WithoutEnvironmentDefaults(),
+		option.WithAPIKey(apiKey),
+		option.WithBaseURL(baseURL),
+		option.WithMaxRetries(0),
+		option.WithHTTPClient(hc),
+	)
 }
 
 func (m *anthropicModel) Name() (string, string) { return ProviderAnthropic, m.model }
 
 func (m *anthropicModel) Call(ctx context.Context, req Request) (Reply, error) {
+	params, ce := m.params(req)
+	if ce != nil {
+		return Reply{}, ce
+	}
+	msg, err := m.client.Messages.New(ctx, params)
+	if err != nil {
+		return Reply{}, anthropicError(err)
+	}
+	return anthropicReply(msg), nil
+}
+
+// Stream is Call over the streaming Messages API: each text delta goes to
+// onText as it arrives; the Reply is the accumulated message. An error
+// status (401, 429, 5xx) is an error, as for Call, also when it comes
+// mid-stream.
+func (m *anthropicModel) Stream(ctx context.Context, req Request, onText func(string)) (Reply, error) {
+	params, ce := m.params(req)
+	if ce != nil {
+		return Reply{}, ce
+	}
+	stream := m.stream.Messages.NewStreaming(ctx, params)
+	defer func() { _ = stream.Close() }()
+	var msg anthropic.Message
+	for stream.Next() {
+		ev := stream.Current()
+		if err := msg.Accumulate(ev); err != nil {
+			return Reply{}, &CallError{Class: Bad, Msg: cut("read the stream: "+err.Error(), maxErrBytes)}
+		}
+		if d, ok := ev.AsAny().(anthropic.ContentBlockDeltaEvent); ok {
+			if t, ok := d.Delta.AsAny().(anthropic.TextDelta); ok && t.Text != "" {
+				onText(t.Text)
+			}
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return Reply{}, anthropicError(err)
+	}
+	return anthropicReply(&msg), nil
+}
+
+// params is req as a Messages request.
+func (m *anthropicModel) params(req Request) (anthropic.MessageNewParams, *CallError) {
 	msgs := make([]anthropic.MessageParam, 0, len(req.Turns))
 	for _, t := range req.Turns {
 		blocks := anthropicBlocks(t)
@@ -60,24 +111,25 @@ func (m *anthropicModel) Call(ctx context.Context, req Request) (Reply, error) {
 	if len(req.Schema) > 0 {
 		schema, err := anthropicSchema(req.Schema)
 		if err != nil {
-			return Reply{}, &CallError{Class: Bad, Msg: err.Error()}
+			return params, &CallError{Class: Bad, Msg: err.Error()}
 		}
 		params.OutputConfig = anthropic.OutputConfigParam{Format: anthropic.JSONOutputFormatParam{Schema: schema}}
 	}
 	for _, td := range req.Tools {
 		tool, err := anthropicTool(td)
 		if err != nil {
-			return Reply{}, &CallError{Class: Bad, Msg: err.Error()}
+			return params, &CallError{Class: Bad, Msg: err.Error()}
 		}
 		params.Tools = append(params.Tools, tool)
 	}
 	if req.System != "" {
 		params.System = []anthropic.TextBlockParam{{Text: req.System}}
 	}
-	msg, err := m.client.Messages.New(ctx, params)
-	if err != nil {
-		return Reply{}, anthropicError(err)
-	}
+	return params, nil
+}
+
+// anthropicReply is a Messages answer as a Reply.
+func anthropicReply(msg *anthropic.Message) Reply {
 	var text strings.Builder
 	var uses []ToolUse
 	for _, block := range msg.Content {
@@ -95,7 +147,7 @@ func (m *anthropicModel) Call(ctx context.Context, req Request) (Reply, error) {
 	case anthropic.StopReasonMaxTokens:
 		rep.Stop = StopMaxTokens
 	}
-	return rep, nil
+	return rep
 }
 
 // anthropicBlocks is a turn's content: its text, then its blocks. An empty
@@ -159,6 +211,20 @@ func asStrings(v any) []string {
 	return out
 }
 
+// anthropicErrorClass is the Class of an error type the API sends in a
+// stream's error event.
+func anthropicErrorClass(errType string) Class {
+	switch errType {
+	case "overloaded_error", "rate_limit_error", "api_error", "timeout_error":
+		return Busy
+	case "authentication_error", "permission_error":
+		return Refused
+	case "not_found_error":
+		return NotFound
+	}
+	return Bad
+}
+
 // anthropicError maps an SDK error to a CallError. The message comes from
 // the API's error body (error.message), not from err.Error(), which also
 // holds the request URL.
@@ -171,6 +237,7 @@ func anthropicError(err error) *CallError {
 		}
 		var body struct {
 			Error struct {
+				Type    string `json:"type"`
 				Message string `json:"message"`
 			} `json:"error"`
 		}
@@ -178,8 +245,14 @@ func anthropicError(err error) *CallError {
 		if json.Unmarshal([]byte(apiErr.RawJSON()), &body) == nil {
 			msg = body.Error.Message
 		}
+		class := classOf(apiErr.StatusCode)
+		if apiErr.StatusCode < 300 {
+			// An error event inside a stream arrives on a 200 response;
+			// its type says what happened.
+			class = anthropicErrorClass(body.Error.Type)
+		}
 		// No NotFound text of its own: a 404 carries the API's message.
-		return httpError(classOf(apiErr.StatusCode), apiErr.StatusCode, hdr, msg, "")
+		return httpError(class, apiErr.StatusCode, hdr, msg, "")
 	}
 	// Network errors, timeouts and a cancelled context: busy, not a try.
 	return transportError(err)

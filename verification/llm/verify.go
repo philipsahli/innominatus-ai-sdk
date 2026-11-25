@@ -1,7 +1,7 @@
 // Command verify calls the real Anthropic API through pkg/model: a plain
 // answer, an answer that must use the system prompt, a JSON answer to a
-// schema, and a tool round trip through model.Loop. It saves what it saw to
-// docs/verification/.
+// schema, a tool round trip through model.Loop and a streamed answer. It
+// saves what it saw to docs/verification/.
 package main
 
 import (
@@ -56,6 +56,7 @@ func main() {
 		{"System prompt context", verifyContext},
 		{"JSON schema answer", verifySchema},
 		{"Tool round trip (Loop)", verifyToolRoundTrip},
+		{"Streamed answer", verifyStream},
 	}
 
 	var results []stepResult
@@ -190,4 +191,26 @@ func verifyToolRoundTrip(ctx context.Context, m model.Model) ([]model.Reply, err
 	}
 	fmt.Printf("  tool calls=%d rounds=%d final=%q\n", calls, len(res.Tries), last.Reply.Text)
 	return replies, nil
+}
+
+func verifyStream(ctx context.Context, m model.Model) ([]model.Reply, error) {
+	var pieces []string
+	rep, err := model.CallStreaming(ctx, m, model.Request{
+		Turns:     []model.Turn{{Role: "user", Text: "Count from 1 to 20, separated by spaces, and nothing else."}},
+		MaxTokens: 128,
+	}, func(s string) { pieces = append(pieces, s) })
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	if len(pieces) < 2 {
+		return []model.Reply{rep}, fmt.Errorf("expected the answer in several pieces, got %d", len(pieces))
+	}
+	if strings.Join(pieces, "") != rep.Text {
+		return []model.Reply{rep}, fmt.Errorf("the pieces do not add up to the reply text")
+	}
+	if !strings.Contains(rep.Text, "20") {
+		return []model.Reply{rep}, fmt.Errorf("expected the count to reach 20, got %q", rep.Text)
+	}
+	fmt.Printf("  pieces=%d tokens=%d/%d\n", len(pieces), rep.InputTokens, rep.OutputTokens)
+	return []model.Reply{rep}, nil
 }

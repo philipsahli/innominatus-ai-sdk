@@ -92,6 +92,17 @@ func Redacting(m Model) Model {
 type redacting struct{ Model }
 
 func (r *redacting) Call(ctx context.Context, req Request) (Reply, error) {
+	return r.call(ctx, req, func(ctx context.Context, req Request) (Reply, error) { return r.Model.Call(ctx, req) })
+}
+
+// Stream is Call, streaming the answer text to onText.
+func (r *redacting) Stream(ctx context.Context, req Request, onText func(string)) (Reply, error) {
+	return r.call(ctx, req, func(ctx context.Context, req Request) (Reply, error) {
+		return CallStreaming(ctx, r.Model, req, onText)
+	})
+}
+
+func (r *redacting) call(ctx context.Context, req Request, do func(context.Context, Request) (Reply, error)) (Reply, error) {
 	// The backends no longer refuse tools themselves (Instrument does), so
 	// a caller that skips Instrument gets the same refusal here.
 	if usesTools(req) && !SupportsTools(r.Model) {
@@ -99,7 +110,7 @@ func (r *redacting) Call(ctx context.Context, req Request) (Reply, error) {
 		return Reply{}, errNoTools(provider)
 	}
 	req, n := RedactRequest(req)
-	rep, err := r.Model.Call(ctx, req)
+	rep, err := do(ctx, req)
 	rep.Redactions = n
 	return rep, err
 }
@@ -116,6 +127,19 @@ type instrumented struct {
 }
 
 func (i *instrumented) Call(ctx context.Context, req Request) (Reply, error) {
+	return i.call(ctx, req, func(ctx context.Context, next Model, req Request) (Reply, error) { return next.Call(ctx, req) })
+}
+
+// Stream is Call that hands the answer text to onText as it arrives, with
+// the same allowlist, redaction, audit rows and metrics.
+func (i *instrumented) Stream(ctx context.Context, req Request, onText func(string)) (Reply, error) {
+	return i.call(ctx, req, func(ctx context.Context, next Model, req Request) (Reply, error) {
+		return CallStreaming(ctx, next, req, onText)
+	})
+}
+
+// call is one governed call; do makes the provider call on next.
+func (i *instrumented) call(ctx context.Context, req Request, do func(context.Context, Model, Request) (Reply, error)) (Reply, error) {
 	provider, model := i.Name()
 	ctx, span := otel.Tracer(i.tracer).Start(withComponent(ctx, i.component), "ai.model.call")
 	defer span.End()
@@ -172,7 +196,7 @@ func (i *instrumented) Call(ctx context.Context, req Request) (Reply, error) {
 	}
 
 	began := time.Now()
-	rep, err := next.Call(ctx, req)
+	rep, err := do(ctx, next, req)
 	rep.Redactions = redactions
 	outcome := outcomeOf(rep, err)
 	if err != nil && errors.Is(ctx.Err(), context.Canceled) {
